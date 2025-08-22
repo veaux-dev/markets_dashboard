@@ -1,3 +1,51 @@
-tickers: []
-intervals: []
-alerts: {}
+# config/config.yaml
+data:
+  tickers:
+    - QQQM.MX
+    - FUNO11.MX
+    - FNOVA17.MX
+    - GMEXICOB.MX
+    - AMXB.MX
+    - BIMBOA.MX
+    - AAPL
+    - MSFT
+    - NVDA
+    - INTC
+    - AMD 
+
+
+  timeframes: 
+    - 1h
+    - 1d
+  indicators:
+    rsi:
+      period: 14
+      oversold: 30
+      overbought: 70
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+
+notifications:
+  method: telegram
+  enable_push: true
+
+storage:
+  path_data: "data/"
+  path_logs: "logs/"
+
+markets:
+  US:
+    tz: "America/New_York"
+    open: "09:30"
+    close: "16:00"
+  MX:
+    tz: "America/Mexico_City"
+    open: "08:30"
+    close: "15:00"
+routing:
+  by_suffix:
+    .MX: "MX"
+    .US: "US"
+  default: "US"
