@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "name": "Run 00_mkt_db.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/00_mkt_db.py",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
