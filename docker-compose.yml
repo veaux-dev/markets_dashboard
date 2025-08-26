@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  market-dashboard:
+    build: .
+    container_name: market_dashboard
+    volumes:
+      - /mnt/MyPool/market_data:/app/data
+    environment:
+      - TZ=America/Mexico_City
+    restart: unless-stopped
