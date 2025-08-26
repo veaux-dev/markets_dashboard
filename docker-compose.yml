@@ -7,7 +7,6 @@ services:
     volumes:
       - /mnt/MyPool/market_data:/app/data
     environment:
-      environment:
       - TZ=America/Mexico_City
       - TELEGRAM_TOKEN=tu_token_real_aqui
       - TELEGRAM_CHAT_ID=tu_chat_id_real_aqui
