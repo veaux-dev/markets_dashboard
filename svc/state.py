@@ -20,7 +20,7 @@ def load_state():
         return {'last_snapshot_ts':'', 'last_alerts':{}}, last_snapshots_ts, last_alerts
 
 def save_state(state):
-
+    os.makedirs("state", exist_ok=True)
     with open(f"state/{STATE_FILE}", "w") as f:
         json.dump(state, f)
 
