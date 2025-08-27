@@ -96,14 +96,17 @@ if __name__ == "__main__":
     analyzer.det_buy_sell(dict,rsi_ob,rsi_os)
 
     new_state=last_state #inicializo new_state con last_state para no perder alertas previas
-    send_snapshot=state.should_send_snapshot(dict[tickers[0]]['2h'],last_state)
+
+    last_timestamp_2h=max(dict[t]["2h"].index[-1] for t in tickers) #me aseguro que el timestamp 2h sea el maximo de todos los tickers
+
+    send_snapshot=state.should_send_snapshot(last_timestamp_2h,last_state)
 
     message=""
     message_discord=""
     urgentmessage="Urgent signals:\n"
 
     if send_snapshot is True:
-        message_discord=f"📊**Market Snapshot** - {dict[tickers[0]]['2h'].index[-1].isoformat()}\n\n"
+        message_discord=f"📊**Market Snapshot** - {last_timestamp_2h.isoformat()}\n\n"
         message_discord+=f"```{'TICKER':<12}  {'CLOSE':>8}  {'SIG':^3}  {'RSI':>3}  {'MACD':>7}" + "\n"
         for ticker in tickers:
             lastrecord=dict[ticker]["2h"].tail(1)
@@ -121,7 +124,7 @@ if __name__ == "__main__":
         message_discord+="```"
         notifier.send_msg(telegram_token, chat_id,message)
         notifier.send_discord(discord_webhook_url,message_discord)
-        snapshot_id=dict[tickers[0]]['2h'].index[-1].isoformat()
+        snapshot_id=last_timestamp_2h.isoformat()
 
     for ticker in tickers:
         lastrecord=dict[ticker]["15m"].tail(1)

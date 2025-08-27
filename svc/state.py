@@ -30,19 +30,15 @@ def last_closed_bar(df):
         return df.index[-1].isoformat()
     return None
 
-def should_send_snapshot(df_2h,state):
+def should_send_snapshot(new_ts,state):
     
-    if df_2h is None or df_2h.empty:
+    if new_ts is None :
         return False
 
-    last_bar = last_closed_bar(df_2h)
-    if last_bar is None:
+    print(f"Last Bar:{str(new_ts)} vs Last Saved State:{str(state.get('last_snapshot_ts'))}")
+
+    if str(new_ts) == str(state.get('last_snapshot_ts')):
         return False
 
-    print(f"Last Bar:{str(last_bar)} vs Last Saved State:{str(state.get('last_snapshot_ts'))}")
-
-    if str(last_bar) == str(state.get('last_snapshot_ts')):
-        return False
-
-    print(f'Sending Snapshot for new bar {str(last_bar)}')
+    print(f'Sending Snapshot for new bar {str(new_ts)}')
     return True
