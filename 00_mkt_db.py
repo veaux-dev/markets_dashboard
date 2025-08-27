@@ -62,7 +62,8 @@ if __name__ == "__main__":
 
     snapshot_id=''
     alert_id={}
-    cur_state={'last_snapshot_ts':'', 'last_alerts':{}}
+    last_state={'last_snapshot_ts':'', 'last_alerts':{}}
+    new_state={'last_snapshot_ts':'', 'last_alerts':{}}
 
  
 
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     if not telegram_token:
         sys.exit("❌ ERROR: No se encontró TELEGRAM_TOKEN en config/secrets.env")
 
-    cur_state,snapshot_id,alert_id=state.load_state()
+    last_state,snapshot_id,alert_id=state.load_state()
     
     dict=collector.download_tickers(tickers,ticker_to_market,market_to_ticker,markets)
 
@@ -94,7 +95,8 @@ if __name__ == "__main__":
 
     analyzer.det_buy_sell(dict,rsi_ob,rsi_os)
 
-    send_snapshot=state.should_send_snapshot(dict[tickers[0]]['2h'],cur_state)
+    new_state=last_state #inicializo new_state con last_state para no perder alertas previas
+    send_snapshot=state.should_send_snapshot(dict[tickers[0]]['2h'],last_state)
 
     message=""
     message_discord=""
@@ -143,7 +145,7 @@ if __name__ == "__main__":
             notifier.send_discord(discord_webhook_url, urgentmessage_discord)
             alert_id[ticker]=lastrecord.index[-1]
 
-    cur_state={'last_snapshot_ts':snapshot_id,'last_alerts':alert_id}
-    print(cur_state)
+    new_state={'last_snapshot_ts':snapshot_id,'last_alerts':alert_id}
+    print(f'New Notification Timestamp to be loaded: {new_state}')
 
-    state.save_state(cur_state)    
+    state.save_state(new_state)    

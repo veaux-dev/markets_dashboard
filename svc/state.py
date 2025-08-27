@@ -12,8 +12,8 @@ def load_state():
     global last_snapshots_ts, last_alerts
     if os.path.exists(f"state/{STATE_FILE}"):
         with open(f"state/{STATE_FILE}", "r") as f:
-            state = json.load(f)
-            return state, state.get('last_snapshot_ts',''), state.get('last_alerts',{})
+            saved_state = json.load(f)
+            return saved_state, saved_state.get('last_snapshot_ts',''), saved_state.get('last_alerts',{})
     else:
         last_snapshots_ts = ''
         last_alerts = {}
@@ -23,6 +23,7 @@ def save_state(state):
     os.makedirs("state", exist_ok=True)
     with open(f"state/{STATE_FILE}", "w") as f:
         json.dump(state, f)
+        print(f'New state saved: {state}')
 
 def last_closed_bar(df):
     if df is not None and not df.empty:
@@ -38,10 +39,10 @@ def should_send_snapshot(df_2h,state):
     if last_bar is None:
         return False
 
-    print(str(last_bar)," vs " ,str(state.get('last_snapshot_ts')))
-    print(type(str(last_bar))," vs " ,type(str(state.get('last_snapshot_ts'))))
+    print(f"Last Bar:{str(last_bar)} vs Last Saved State:{str(state.get('last_snapshot_ts'))}")
 
     if str(last_bar) == str(state.get('last_snapshot_ts')):
         return False
 
+    print(f'Sending Snapshot for new bar {str(last_bar)}')
     return True
