@@ -8,6 +8,7 @@ services:
       - /mnt/MyPool/market_data:/app/data
     environment:
       - TZ=America/Mexico_City
-      - TELEGRAM_TOKEN=tu_token_real_aqui
-      - TELEGRAM_CHAT_ID=tu_chat_id_real_aqui
-    restart: unless-stopped
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+    restart: no
