@@ -17,7 +17,7 @@ def load_state():
     else:
         last_snapshots_ts = ''
         last_alerts = {}
-        return {'last_snapshot_ts':'', 'last_alerts':{}}
+        return {'last_snapshot_ts':'', 'last_alerts':{}}, last_snapshots_ts, last_alerts
 
 def save_state(state):
 
