@@ -131,18 +131,18 @@ def save_local(dict,path):
         dir_path=os.path.join(path, ticker)
         os.makedirs(dir_path,exist_ok=True)
         for timeframe in list(dict[ticker].keys()):
-            file_path=os.path.join(dir_path, f"{timeframe}.parquet")
+            file_path=os.path.normpath(os.path.join(dir_path, f"{timeframe}.parquet"))
             try: 
-                old=pd.read_parquet(path=file_path)
+                print(repr(file_path))
+                old=pd.read_parquet(file_path)
                 new=data_by_ticker[ticker][timeframe]
                 new=pd.concat([old,new])
                 new = new.loc[~new.index.duplicated(keep='last')].sort_index()
                 
-            except FileNotFoundError:
+            except: # (FileNotFoundError, OSError):
                 new=data_by_ticker[ticker][timeframe]
-            finally:
-                new=data_by_ticker[ticker][timeframe]
-                new.to_parquet(path=file_path,engine='pyarrow') 
+            
+            new.to_parquet(path=file_path,engine='pyarrow') 
 
 
 

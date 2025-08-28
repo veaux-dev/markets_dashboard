@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     last_timestamp_2h=max(dict[t]["2h"].index[-1] for t in tickers) #me aseguro que el timestamp 2h sea el maximo de todos los tickers
 
-    send_snapshot=state.should_send_snapshot(last_timestamp_2h,last_state)
+    send_snapshot=state.should_send_snapshot(last_timestamp_2h.isoformat(),last_state)
 
     message=""
     message_discord=""
@@ -107,7 +107,7 @@ if __name__ == "__main__":
 
     if send_snapshot is True:
         message_discord=f"📊**Market Snapshot** - {last_timestamp_2h.isoformat()}\n\n"
-        message_discord+=f"```{'TICKER':<12}  {'CLOSE':>8}  {'SIG':^3}  {'RSI':>3}  {'MACD':>7}" + "\n"
+        message_discord+=f"```{'TICKER':<10} {'CLOSE':>8} {'SIG':^3} {'RSI':>3} {'MACD':>7}" + "\n"
         for ticker in tickers:
             lastrecord=dict[ticker]["2h"].tail(1)
     
@@ -119,12 +119,14 @@ if __name__ == "__main__":
                     signalmsg="⏸️"
 
             message+=f"<b>{ticker}</b> = Value:{lastrecord['close'].iloc[-1]:.2f} {signalmsg} RSI:{lastrecord['rsi'].iloc[-1]:.0f} MACD:{lastrecord['macd_hist'].iloc[-1]:.2f}" + "\n"
-            message_discord+=f"{ticker:<12}  {lastrecord['close'].iloc[-1]:>8.2f}  {signalmsg:^3}  {lastrecord['rsi'].iloc[-1]:>3.0f}  {lastrecord['macd_hist'].iloc[-1]:>7.1f}" + "\n"
+            message_discord+=f"{ticker:<10} {lastrecord['close'].iloc[-1]:>8.2f} {signalmsg:^3} {lastrecord['rsi'].iloc[-1]:>3.0f} {lastrecord['macd_hist'].iloc[-1]:>7.1f}" + "\n"
 
         message_discord+="```"
         notifier.send_msg(telegram_token, chat_id,message)
         notifier.send_discord(discord_webhook_url,message_discord)
         snapshot_id=last_timestamp_2h.isoformat()
+    else:
+        print("No new snapshot to send")
 
     for ticker in tickers:
         lastrecord=dict[ticker]["15m"].tail(1)

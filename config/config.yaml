@@ -1,6 +1,9 @@
 # config/config.yaml
 data:
   tickers:
+    - ^GSPC
+    - ^NDX
+    - ^MXX
     - QQQM.MX
     - FUNO11.MX
     - FNOVA17.MX
@@ -11,7 +14,8 @@ data:
     - MSFT
     - NVDA
     - INTC
-    - AMD 
+    - AMD
+    - TSLA
 
 
   timeframes: 
