@@ -1,9 +1,8 @@
-
-import os
-import yaml
-from dotenv import load_dotenv
 import sys
 from svc import collector, analyzer, notifier, state
+from svc.load_config import tickers, markets, suffix_map, default_market, telegram_token, chat_id, discord_webhook_url, save_directory
+from svc import viz #EXPERIMENTAL NOT FOR PRODUCTION
+
 
 def assign_ticker_market(tickers, default_market):
     """
@@ -31,32 +30,9 @@ def assign_ticker_market(tickers, default_market):
 # --------------------------------------------------
 if __name__ == "__main__":
 
-    # --------------------------------------------------
-    # 2) Cargar configuración (config.yaml)
-    # --------------------------------------------------
-    # - Usar ruta relativa al directorio raíz del proyecto
-    # - Validar que el archivo exista
-    # - Guardar en variable global CONFIG
-    with open("config/config.yaml", "r") as f:
-        config = yaml.safe_load(f)
-
-    tickers=config["data"]["tickers"]
-    
-    save_directory=config["storage"]["path_data"]
-    
-    rsi_length=config["data"]["indicators"]["rsi"]["period"] 
-    rsi_ob=config["data"]["indicators"]["rsi"]["overbought"]
-    rsi_os=config["data"]["indicators"]["rsi"]["oversold"]
-
-    macd_fast=config["data"]["indicators"]["macd"]["fast"]
-    macd_slow=config["data"]["indicators"]["macd"]["slow"]
-    macd_signal=config["data"]["indicators"]["macd"]["signal"]
-
-    suffix_map=config["routing"]["by_suffix"]
-    
-    markets=config["markets"]
-
-    default_market=config["routing"]["default"]
+    # Validar que el token exista
+    if not telegram_token:
+        sys.exit("❌ ERROR: No se encontró TELEGRAM_TOKEN en config/secrets.env")
 
     ticker_to_market,market_to_ticker=assign_ticker_market(tickers, default_market)
 
@@ -64,26 +40,7 @@ if __name__ == "__main__":
     alert_id={}
     last_state={'last_snapshot_ts':'', 'last_alerts':{}}
     new_state={'last_snapshot_ts':'', 'last_alerts':{}}
-
- 
-
-
-
-    # --------------------------------------------------
-    # 3) Cargar secretos (secrets.env)
-    # --------------------------------------------------
-    # - Usar dotenv para exponer en variables de entorno``
-    # - Validar que se hayan cargado las claves necesarias
-    # - Guardar en variables como API_KEY, API_SECRET, etc.
-    load_dotenv("config/secrets.env")
-
-    telegram_token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    discord_webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-
-    # Validar que el token exista
-    if not telegram_token:
-        sys.exit("❌ ERROR: No se encontró TELEGRAM_TOKEN en config/secrets.env")
+    
 
     last_state,snapshot_id,alert_id=state.load_state()
     
@@ -91,9 +48,9 @@ if __name__ == "__main__":
 
     collector.save_local(dict,save_directory)
 
-    analyzer.analyse_data(dict,rsi_length,macd_fast,macd_slow,macd_signal)
+    analyzer.analyse_data(dict)
 
-    analyzer.det_buy_sell(dict,rsi_ob,rsi_os)
+    analyzer.det_buy_sell(dict)
 
     new_state=last_state #inicializo new_state con last_state para no perder alertas previas
 
@@ -107,19 +64,31 @@ if __name__ == "__main__":
 
     if send_snapshot is True:
         message_discord=f"📊**Market Snapshot** - {last_timestamp_2h.isoformat()}\n\n"
-        message_discord+=f"```{'TICKER':<10} {'CLOSE':>8} {'SIG':^3} {'RSI':>3} {'MACD':>7}" + "\n"
+        message_discord+=f"```{'TICKER':<12} {'CLOSE':>8} {'BIAS':^4} {'Δ-1c':>5}  {'Δ-1d':>5}  {'RSI':>3} {'MACD':>5} {'Support':>9} {'Resist.':>9}" + "\n"
         for ticker in tickers:
             lastrecord=dict[ticker]["2h"].tail(1)
     
-            if lastrecord['signal'].iloc[-1] =="BUY":
+            if lastrecord['bias'].iloc[-1] =="buy":
                     signalmsg="🟢"
-            elif lastrecord['signal'].iloc[-1] =="SELL":
+            elif lastrecord['bias'].iloc[-1] =="sell":
                     signalmsg="🔴"
             else:
-                    signalmsg="⏸️"
+                    signalmsg="⚪"
 
+            dlc, dld = analyzer.get_deltas(dict,ticker,"2h")
+            donch_low  = lastrecord['donchian_low'].iloc[-1]
+            donch_high = lastrecord['donchian_high'].iloc[-1]
+            
             message+=f"<b>{ticker}</b> = Value:{lastrecord['close'].iloc[-1]:.2f} {signalmsg} RSI:{lastrecord['rsi'].iloc[-1]:.0f} MACD:{lastrecord['macd_hist'].iloc[-1]:.2f}" + "\n"
-            message_discord+=f"{ticker:<10} {lastrecord['close'].iloc[-1]:>8.2f} {signalmsg:^3} {lastrecord['rsi'].iloc[-1]:>3.0f} {lastrecord['macd_hist'].iloc[-1]:>7.1f}" + "\n"
+            message_discord+=(
+                 f"{ticker:<12} "
+                 f"{lastrecord['close'].iloc[-1]:>8.2f} "
+                 f"{signalmsg:^4} "
+                 f"{dlc:>+5.1f}% {dld:>5.1f}% "
+                 f"{lastrecord['rsi'].iloc[-1]:>3.0f} {lastrecord['macd_hist'].iloc[-1]:>+5.1f}" 
+                 f"{donch_low:>9.2f} {donch_high:>9.2f}"
+                 "\n"
+            )
 
         message_discord+="```"
         notifier.send_msg(telegram_token, chat_id,message)
@@ -153,4 +122,7 @@ if __name__ == "__main__":
     new_state={'last_snapshot_ts':snapshot_id,'last_alerts':alert_id}
     print(f'New Notification Timestamp to be loaded: {new_state}')
 
-    state.save_state(new_state)    
+    state.save_state(new_state)
+
+    # viz.quick_viz_triple_screen(dict["AAPL"], tick="AAPL") #EXPERIMENTAL NOT FOR PRODUCTION
+    

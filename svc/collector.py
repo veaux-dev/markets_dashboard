@@ -60,8 +60,8 @@ data_by_ticker=defaultdict(dict)
 # - Guardar en DataFrame principal
 def download_tickers(tickers,ticker_to_market,market_to_ticker,markets):
 
-    out_1d= yf.download(tickers,interval= "1d",period="max",auto_adjust=True,prepost=False)
-    out_1h= yf.download(tickers,interval= "1h",period="60d",auto_adjust=True,prepost=False)
+    out_1d= yf.download(tickers,interval= "1d",period="20y",auto_adjust=True,prepost=False) 
+    out_1h= yf.download(tickers,interval= "1h",period="1y",auto_adjust=True,prepost=False)
     out_15m= yf.download(tickers,interval= "15m",period="60d",auto_adjust=True,prepost=False)
 
 

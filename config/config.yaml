@@ -4,7 +4,7 @@ data:
     - ^GSPC
     - ^NDX
     - ^MXX
-    - QQQM.MX
+    - QQQM
     - FUNO11.MX
     - FNOVA17.MX
     - GMEXICOB.MX
@@ -30,6 +30,14 @@ data:
       fast: 12
       slow: 26
       signal: 9
+    adx:
+      length: 14
+    ema:
+      short: 50
+      long: 200
+    bollinger:
+      length: 20
+      std: 2.0
 
 notifications:
   method: telegram
