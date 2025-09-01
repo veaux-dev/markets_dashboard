@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 # - Usar ruta relativa al directorio raíz del proyecto
 # - Validar que el archivo exista
 # - Guardar en variable global CONFIG
-with open("config/config.yaml", "r") as f:
+with open("../config/config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 tickers=config["data"]["tickers"]
