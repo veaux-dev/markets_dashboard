@@ -5,8 +5,8 @@ services:
     build: .
     container_name: market_dashboard
     volumes:
-      - /mnt/MyPool/market_data:/app/data
-      - /mnt/MyPool/market_config:/app/config
+      - /mnt/MyPool/Data/Markets/data:/app/data
+      - /mnt/MyPool/Data/Markets/config:/app/config
     environment:
       - TZ=America/Mexico_City
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}

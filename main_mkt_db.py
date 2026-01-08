@@ -1,5 +1,5 @@
 import sys
-from svc import collector, analyzer, notifier, state
+from svc import collector, analyzer, notifier, state, db_mgmt, screener
 from svc.load_config import tickers, markets, suffix_map, default_market, telegram_token, chat_id, discord_webhook_url, save_directory
 from svc import viz #EXPERIMENTAL NOT FOR PRODUCTION
 
@@ -44,17 +44,17 @@ if __name__ == "__main__":
 
     last_state,snapshot_id,alert_id=state.load_state()
     
-    dict=collector.download_tickers(tickers,ticker_to_market,market_to_ticker,markets)
+    working_db = collector.download_tickers(tickers, output_path="data")
 
-    collector.save_local(dict,save_directory)
+    working_db= collector.save_local(working_db,'data')
 
-    analyzer.analyse_data(dict)
+    working_db = analyzer.analyse_data(working_db)
 
-    analyzer.det_buy_sell(dict)
+    working_db = analyzer.det_buy_sell(working_db)
 
     new_state=last_state #inicializo new_state con last_state para no perder alertas previas
 
-    last_timestamp_2h=max(dict[t]["2h"].index[-1] for t in tickers) #me aseguro que el timestamp 2h sea el maximo de todos los tickers
+    last_timestamp_2h=max(working_db[t]["2h"].index[-1] for t in tickers) #me aseguro que el timestamp 2h sea el maximo de todos los tickers
 
     send_snapshot=state.should_send_snapshot(last_timestamp_2h.isoformat(),last_state)
 
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         message_discord=f"📊**Market Snapshot** - {last_timestamp_2h.isoformat()}\n\n"
         message_discord+=f"```{'TICKER':<12} {'CLOSE':>8} {'BIAS':^4} {'Δ-1c':>5}  {'Δ-1d':>5}  {'RSI':>3} {'MACD':>5} {'Support':>9} {'Resist.':>9}" + "\n"
         for ticker in tickers:
-            lastrecord=dict[ticker]["2h"].tail(1)
+            lastrecord=working_db[ticker]["2h"].tail(1)
     
             if lastrecord['bias'].iloc[-1] =="buy":
                     signalmsg="🟢"
@@ -75,7 +75,7 @@ if __name__ == "__main__":
             else:
                     signalmsg="⚪"
 
-            dlc, dld = analyzer.get_deltas(dict,ticker,"2h")
+            dlc, dld = analyzer.get_deltas(working_db,ticker,"2h")
             donch_low  = lastrecord['donchian_low'].iloc[-1]
             donch_high = lastrecord['donchian_high'].iloc[-1]
             
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         print("No new snapshot to send")
 
     for ticker in tickers:
-        lastrecord=dict[ticker]["15m"].tail(1)
+        lastrecord=working_db[ticker]["15m"].tail(1)
         if lastrecord['signal'].iloc[-1] =="BUY":
             signalmsg="🟢"
         elif lastrecord['signal'].iloc[-1] =="SELL":

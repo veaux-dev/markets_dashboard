@@ -7,3 +7,4 @@ config/secrets.env
 data/
 *.log
 .env
+strategies/

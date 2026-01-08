@@ -1,13 +1,19 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        
-        {
-            "name": "Run main_mkt_db.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/main_mkt_db.py",
-            "cwd": "${workspaceFolder}"
-        }
-    ]
+  "configurations": [
+    {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+    },
+    {
+      "name": "Python Debugger: Python File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+    }
+  ]
 }

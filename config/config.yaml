@@ -5,17 +5,20 @@ data:
     - ^NDX
     - ^MXX
     - QQQM
-    - FUNO11.MX
     - FNOVA17.MX
-    - GMEXICOB.MX
-    - AMXB.MX
-    - BIMBOA.MX
+    - LABB.MX
+    - ALSEA.MX
+    - TRAXIONA.MX
+    - MEGACPO.MX
     - AAPL
     - MSFT
     - NVDA
     - INTC
     - AMD
     - TSLA
+    - SOXL
+    - SOXS
+    - SOXX
 
 
   timeframes: 
