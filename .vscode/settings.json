@@ -3,6 +3,7 @@
     "python.analysis.extraPaths": ["${workspaceFolder}/.venv/Lib/site-packages"],
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "python-envs.defaultEnvManager": "ms-python.python:venv"
     
 }
