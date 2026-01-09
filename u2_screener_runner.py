@@ -244,6 +244,26 @@ def run_once(cfg: dict) -> None:
     output_html = output_dir / "u2_screener_FIJO_embedded.html"
     build_embedded_html(str(output_json), template_path, str(output_html))
 
+    index_html = output_dir / "index.html"
+    index_html.write_text(
+        "\n".join(
+            [
+                "<!doctype html>",
+                "<html lang=\"en\">",
+                "<head>",
+                "  <meta charset=\"utf-8\">",
+                "  <meta http-equiv=\"refresh\" content=\"0; url=u2_screener_FIJO_embedded.html\">",
+                "  <title>U2 Screener</title>",
+                "</head>",
+                "<body>",
+                "  <p>Redirecting to screener...</p>",
+                "</body>",
+                "</html>",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
     if cfg.get("publish_template", True):
         template_out = output_dir / "u2_screener_FIJO.html"
         template_out.write_text(Path(template_path).read_text(encoding="utf-8"), encoding="utf-8")

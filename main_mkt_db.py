@@ -104,7 +104,11 @@ if __name__ == "__main__":
     else:
         print("No new snapshot to send")
 
+    missing_15m = []
     for ticker in tickers:
+        if "15m" not in working_db.get(ticker, {}):
+            missing_15m.append(ticker)
+            continue
         lastrecord=working_db[ticker]["15m"].tail(1)
         if lastrecord['signal'].iloc[-1] =="BUY":
             signalmsg="🟢"
@@ -125,6 +129,9 @@ if __name__ == "__main__":
             notifier.send_msg(telegram_token, chat_id,message)
             notifier.send_discord(discord_webhook_url, urgentmessage_discord)
             alert_id[ticker]=lastrecord.index[-1]
+
+    if missing_15m:
+        print(f"⚠️ Missing 15m data for tickers: {', '.join(missing_15m)}")
 
     new_state={'last_snapshot_ts':snapshot_id,'last_alerts':alert_id}
     print(f'New Notification Timestamp to be loaded: {new_state}')
