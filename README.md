@@ -53,6 +53,13 @@ Este `docker-compose.yml` levanta:
 docker compose up -d --build
 ```
 
+### Forzar rebuild (sin CLI de Portainer)
+Se usa `build_stamp.txt` como "cache bust".  
+Cuando quieras forzar rebuild:
+1) Cambia el contenido de `build_stamp.txt` (ej. fecha/hora).
+2) Haz push.
+3) Portainer hará rebuild porque cambia un archivo copiado antes de `pip install`.
+
 ### Config del screener
 Archivo: `config/u2_screener_config.json` (se monta como read‑only en el runner).  
 Ajusta:

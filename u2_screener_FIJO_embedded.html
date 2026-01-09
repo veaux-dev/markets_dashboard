@@ -129,7 +129,7 @@
 
 let table;
 
-// Permite modo embebido (sin fetch) si existe <script id="preloadedData" type="application/json">...
+
 const PRELOADED_EL   = document.getElementById('preloadedData');
 const PRELOADED_DATA = PRELOADED_EL ? JSON.parse(PRELOADED_EL.textContent || '[]') : null;
 const EMBEDDED_MODE  = Array.isArray(PRELOADED_DATA);
