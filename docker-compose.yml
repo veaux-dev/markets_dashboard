@@ -15,7 +15,6 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - NUMBA_DISABLE_JIT=1
-    user: "${PUID:-1000}:${PGID:-1000}"
     restart: no
 
   u2-screener-runner:
@@ -30,7 +29,6 @@ services:
       - U2_TELEGRAM_TOKEN=${U2_TELEGRAM_TOKEN}
       - U2_TELEGRAM_CHAT_ID=${U2_TELEGRAM_CHAT_ID}
       - NUMBA_DISABLE_JIT=1
-#    user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
       - ${BASE_DIR}/Screener/out:/app/out
       - ${BASE_DIR}/Screener/data:/app/data
@@ -45,5 +43,4 @@ services:
       - ${BASE_DIR}/Screener/out:/usr/share/nginx/html:ro
     ports:
       - "${U2_WEB_PORT:-8088}:80"
-    user: "${PUID:-1000}:${PGID:-1000}"
     restart: unless-stopped
