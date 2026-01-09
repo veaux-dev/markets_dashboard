@@ -54,16 +54,23 @@ if __name__ == "__main__":
 
     new_state=last_state #inicializo new_state con last_state para no perder alertas previas
 
-    timestamps = [
-        working_db[t]["2h"].index[-1]
-        for t in tickers
-        if "2h" in working_db.get(t, {}) and not working_db[t]["2h"].empty
-    ]
-    last_timestamp_2h = max(timestamps)
+    missing_2h = []
+    timestamps = []
+    for t in tickers:
+        if "2h" not in working_db.get(t, {}) or working_db[t]["2h"].empty:
+            missing_2h.append(t)
+            continue
+        timestamps.append(working_db[t]["2h"].index[-1])
 
+    if missing_2h:
+        print(f"⚠️ Missing 2h data for tickers: {', '.join(missing_2h)}")
 
-
-    send_snapshot=state.should_send_snapshot(last_timestamp_2h.isoformat(),last_state)
+    last_timestamp_2h = max(timestamps) if timestamps else None
+    send_snapshot = (
+        state.should_send_snapshot(last_timestamp_2h.isoformat(), last_state)
+        if last_timestamp_2h is not None
+        else False
+    )
 
     message=""
     message_discord=""
@@ -73,6 +80,8 @@ if __name__ == "__main__":
         message_discord=f"📊**Market Snapshot** - {last_timestamp_2h.isoformat()}\n\n"
         message_discord+=f"```{'TICKER':<12} {'CLOSE':>8} {'BIAS':^4} {'Δ-1c':>5}  {'Δ-1d':>5}  {'RSI':>3} {'MACD':>5} {'Support':>9} {'Resist.':>9}" + "\n"
         for ticker in tickers:
+            if "2h" not in working_db.get(ticker, {}) or working_db[ticker]["2h"].empty:
+                continue
             lastrecord=working_db[ticker]["2h"].tail(1)
     
             if lastrecord['bias'].iloc[-1] =="buy":
