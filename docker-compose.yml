@@ -14,6 +14,7 @@ services:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - NUMBA_DISABLE_JIT=1
     user: "${PUID:-1000}:${PGID:-1000}"
     restart: no
 
@@ -28,6 +29,7 @@ services:
       - U2_DISCORD_WEBHOOK_URL=${U2_DISCORD_WEBHOOK_URL}
       - U2_TELEGRAM_TOKEN=${U2_TELEGRAM_TOKEN}
       - U2_TELEGRAM_CHAT_ID=${U2_TELEGRAM_CHAT_ID}
+      - NUMBA_DISABLE_JIT=1
 #    user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
       - ${BASE_DIR}/Screener/out:/app/out
