@@ -28,7 +28,7 @@ services:
       - U2_DISCORD_WEBHOOK_URL=${U2_DISCORD_WEBHOOK_URL}
       - U2_TELEGRAM_TOKEN=${U2_TELEGRAM_TOKEN}
       - U2_TELEGRAM_CHAT_ID=${U2_TELEGRAM_CHAT_ID}
-    user: "${PUID:-1000}:${PGID:-1000}"
+#    user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
       - ${BASE_DIR}/Screener/out:/app/out
       - ${BASE_DIR}/Screener/data:/app/data
