@@ -54,7 +54,14 @@ if __name__ == "__main__":
 
     new_state=last_state #inicializo new_state con last_state para no perder alertas previas
 
-    last_timestamp_2h=max(working_db[t]["2h"].index[-1] for t in tickers) #me aseguro que el timestamp 2h sea el maximo de todos los tickers
+    timestamps = [
+        working_db[t]["2h"].index[-1]
+        for t in tickers
+        if "2h" in working_db.get(t, {}) and not working_db[t]["2h"].empty
+    ]
+    last_timestamp_2h = max(timestamps)
+
+
 
     send_snapshot=state.should_send_snapshot(last_timestamp_2h.isoformat(),last_state)
 
@@ -75,7 +82,7 @@ if __name__ == "__main__":
             else:
                     signalmsg="⚪"
 
-            dlc, dld = analyzer.get_deltas(working_db,ticker,"2h")
+            dlc, dld, _, _, _ = analyzer.get_deltas(working_db,ticker,"2h")
             donch_low  = lastrecord['donchian_low'].iloc[-1]
             donch_high = lastrecord['donchian_high'].iloc[-1]
             
