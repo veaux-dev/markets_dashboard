@@ -1,0 +1,27 @@
+{
+  "tickers": [
+    "AAPL.MX",
+    "MSFT.MX",
+    "NVDA.MX"
+  ],
+  "update_minutes": 30,
+  "intervals_cfg": [
+    { "name": "1d", "interval": "1d", "period": "20y" },
+    { "name": "1h", "interval": "1h", "period": "1y" },
+    { "name": "15m", "interval": "15m", "period": "60d" }
+  ],
+  "intra_tf": "1h",
+  "save_local": true,
+  "include_fundamentals": true,
+  "template_path": "u2_screener_FIJO.html",
+  "publish_template": true,
+  "output_dir": "out",
+  "data_dir": "data",
+  "state_path": "state/u2_alert_state.json",
+  "alerts": {
+    "notify_on_u2_entry": true,
+    "discord_webhook": "",
+    "telegram_token": "",
+    "telegram_chat_id": ""
+  }
+}
