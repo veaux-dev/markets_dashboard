@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>U2 Screener</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.1.2/css/buttons.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/fixedheader/4.0.1/css/fixedHeader.dataTables.min.css">
+<!-- <link rel="stylesheet" href="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css"> -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.1.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.1.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/fixedheader/4.0.1/js/dataTables.fixedHeader.min.js"></script>
+<!-- <script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js"></script> -->
+<style>
+  :root{ --tbl-font: 12px }
+  body{ font-size: inherit }
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:16px}
+  h1{font-size:1.15rem;margin:0 0 10px}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0 12px}
+  .controls label{display:flex;gap:6px;align-items:center}
+  .controls input,.controls select{padding:6px 8px}
+  .controls button{padding:6px 10px;cursor:pointer}
+  table.dataTable thead th{ white-space:normal; line-height:1.2; }
+  .dt-center{text-align:center}
+  .badge{padding:2px 6px;border-radius:6px;font-weight:600;font-size:.95em}
+  .badge.green{background:#e6f4ea;color:#0b6b2b}
+  .badge.red{background:#fde8e8;color:#a1121c}
+  .badge.gray{background:#eef2f7;color:#39465a}
+  .banner{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:8px 0 12px;padding:10px 12px;
+          background:#101318;border:1px solid #2a2f3a;border-radius:10px;color:#e6e6e6}
+  .banner code{background:#0f172a;padding:2px 6px;border-radius:6px}
+  .legend{margin:6px 0 12px;color:#6584aa;font-size:.92em;line-height:1.35}
+  .legend ul{margin:6px 0 0 18px;padding:0}
+  .legend li code{background:#0f172a;padding:1px 5px;border-radius:6px}
+  #tbl thead tr.filters th{padding:4px 8px; background-image: none !important; cursor: default !important}
+  /* También oculta los pseudo-elementos de orden */
+  #tbl thead tr.filters th::before,#tbl thead tr.filters th::after {display: none !important;  content: none !important;}
+  /* #tbl thead th{padding:4px 8px} */
+  /* #tbl{table-layout: fixed;} */
+  #tbl thead tr.filters input,#tbl thead tr.filters select{width:100%;box-sizing:border-box;padding:4px 8px}
+  #tbl{ font-size: var(--tbl-font) }
+  .pos{ color:#15803d; font-weight:600 }   /* verde */
+  .neg{ color:#b91c1c; font-weight:600 }   /* rojo  */
+  .neu{ color:#64748b }                    /* gris  */
+  .chip{ padding:2px 6px; border-radius:6px; background:#0f172a; display:inline-block }
+  .ticker-link{ color:#22c55e; text-decoration:none; font-weight:600 }
+  .ticker-link:hover{ text-decoration:underline; color:#16a34a }
+  /* #tbl td{padding: 0px 8px} */
+  #toggleFundamentals{
+    padding:6px 10px; border:1px solid #2a2f3a; border-radius:8px;
+    background:#0f172a; color:#e5e7eb; cursor:pointer;
+
+    .tt{ position:relative; cursor:help }
+    .tt:hover .tt-card{ opacity:1; transform:translateY(0); pointer-events:auto }
+    .tt-card{
+      position:absolute; z-index:50; top:110%; left:0; min-width:280px;
+      background:#0b1220; color:#e5e7eb; border:1px solid #1f2937; border-radius:10px;
+      box-shadow:0 12px 30px rgba(0,0,0,.35); padding:10px 12px; font-size:.9em;
+      opacity:0; transform:translateY(4px); transition:.16s ease; pointer-events:none;
+    }
+    .tt-card .k{color:#93c5fd} .tt-card .v{color:#f3f4f6}
+  }
+  #toggleFundamentals:hover{ background:#111827 }
+  /* 1) Permite que el texto del título del header haga wrap y lo “clampeamos” a 3 líneas */
+  #tbl.dataTable thead th .dt-column-title{
+    white-space: normal !important;   /* rompe el nowrap del theme */
+    overflow-wrap: break-word;          /* rompe palabras largas si hace falta */
+    line-height: 1.1;
+    display: -webkit-box;             /* line-clamp */
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;            /* <= máx 3 líneas */
+    line-clamp: 3;
+    overflow: hidden;                 /* oculta lo que exceda */
+  }
+
+  /* 2) (Opcional) fija un ancho “corto” a columnas verbosas para que realmente envuelvan.
+    Usa el índice que te da data-dt-column en tu dump. Ejemplos: */
+  #tbl thead th[data-dt-column="15"] { width: 12ch; }  /* MACD slope3 norm  */
+  #tbl thead th[data-dt-column="14"] { width: 10ch; }  /* MACD slope3       */
+  #tbl thead th[data-dt-column="33"] { width: 12ch; }  /* Reacelera MACD    */
+</style></head>
+<body>
+<h1>U2 Screener</h1>
+<div class="banner" id="liveBanner">
+  📌 Close intradía <strong id="tfUsed">1h</strong>
+  <span id="asofDisplay" style="margin-left: 30%; font-size:0.95em; color:#9ca3af;">
+  AsOf: <strong class="asof-value" style="color:#ef4444;">--</strong>
+  </span>
+  <span style="float:right; font-size:0.9em; color:#9ca3af;">
+    Última actualización: <strong id="lastUpdate">--:--:--</strong>
+  </span>
+</div>
+
+<div class="legend">
+  <strong>Definiciones rápidas:</strong>
+  <ul>
+    <li><code>PriceNow</code>: último cierre de la vela intradía (p. ej., 1h).</li>
+    <li><code>ClosePrev</code>: cierre oficial de <em>ayer</em> (diario).</li>
+    <li><code>Close</code>: última vela diaria (si el día no ha cerrado, puede ser parcial).</li>
+    <li><code>Δ-1d(now)</code>: <code>PriceNow / ClosePrev - 1</code> → variación “en momento” vs cierre de ayer.</li>
+    <li><code>Δ-open(now)</code>: <code>PriceNow / OpenToday - 1</code> → variación desde la apertura de hoy.</li>
+    <li><code>Δ-1d</code>, <code>Δ-2d</code>, <code>Δ-5d</code>: variaciones entre <strong>cierres diarios</strong> (ayer vs hace N sesiones).</li>
+    <li><code>Δ-lf</code>, <code>Δ-pf</code>: variaciones <strong>semanales</strong> (viernes vs viernes).</li>
+  </ul>
+</div>
+<div class="controls">
+  <label>Buscar: <input type="search" id="globalSearch" placeholder="Buscar..."></label>
+  <label>Bias:
+    <select id="biasFilter"><option value="">(Todos)</option><option value="🟢">🟢</option><option value="🔴">🔴</option><option value="⚪">⚪</option></select>
+  </label>
+  <label>PhaseW:
+    <select id="phaseFilter"><option value="">(Todos)</option><option>U2</option><option>U1/D3</option><option>D4</option><option>Mixta</option></select>
+  </label>
+  <button id="toggleColFilters">Mostrar/Ocultar filtros por columna</button>
+  <button id="resetAll">Reset filtros</button>
+  <button id="clearState">Borrar estado guardado</button>
+  <button id="toggleFundamentals" title="Mostrar/ocultar columnas fundamentales largas"> Ocultar fund. </button>
+  <label>Tamaño:<input id="fontSlider" type="range" min="08" max="18" value="14" step="1" style="width:120px"></label>
+</div>
+
+<table id="tbl" class="display compact nowrap" style="width:100%">
+  <thead>
+    <tr class="headers"></tr>
+    <tr class="filters" style="display:none;"></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+
+<script>
+
+let table;
+
+
+const PRELOADED_EL   = document.getElementById('preloadedData');
+const PRELOADED_DATA = PRELOADED_EL ? JSON.parse(PRELOADED_EL.textContent || '[]') : null;
+const EMBEDDED_MODE  = Array.isArray(PRELOADED_DATA);
+
+
+// === NUEVO SISTEMA DE LAYOUT ===================================
+// Controla el orden, nombre y visibilidad de cada columna.
+// Basta con modificar este array para reordenar u ocultar campos.
+const LAYOUT = [
+  { key:'Ticker', title:'Ticker', show:true },
+  
+  { key:'PriceNow', title:'Close intrad', show:true },
+  { key:'Close', title:'Close (hoy)', show:true },
+  { key:'ClosePrev', title:'Close (ayer)', show:true },
+  { key:'Bias', title:'Bias', show:true },
+  { key:'Δ-1d(now)', title:'Δ-1d (now)', show:true },
+  { key:'Δ-open(now)', title:'Δ-open (now)', show:true },
+  { key:'Δ-1d', title:'Δ-1d', show:true },
+  { key:'Δ-2d', title:'Δ-2d', show:true },
+  { key:'Δ-5d', title:'Δ-5d', show:true },
+  { key:'Δ-lf', title:'Δ-lf', show:true },
+  { key:'Δ-pf', title:'Δ-pf', show:true },
+  { key:'RSI', title:'RSI', show:true },
+  { key:'MACDh', title:'MACDh', show:true },
+  { key:'MACD_slope3', title:'MACDh Slope', show:true },
+  { key:'MACD_slope3_norm', title:'MACDh Slope (norm)', show:true },
+  { key:'Sup20', title:'Support 20', show:true },
+  { key:'Res20', title:'Resist. 20', show:true },
+  { key:'Sup60', title:'Support 60', show:true },
+  { key:'Res60', title:'Resist. 60', show:true },
+  { key:'PhaseW', title:'Phase Weinstein', show:true },
+  { key:'DiasFase', title:'Días Fase', show:true },
+  { key:'PhasePrev', title:'Phase Prev', show:true },
+  { key:'PhaseChanged', title:'Phase Ch.', show:true },
+  { key:'U2_entry', title:'U2 entry', show:true },
+  { key:'Force', title:'Force', show:true },
+  { key:'DistRes%', title:'DistRes%', show:true },
+  { key:'TF', title:'TF', show:true },
+  { key:'AsOf', title:'AsOf', show:true },
+  { key:'AboveMA50', title:'MA50+', show:true },
+  { key:'AboveMA200', title:'MA200+', show:true },
+  { key:'BreakRes20', title:'Res20+', show:true },
+  { key:'BreakRes60', title:'Res60+', show:true },
+  { key:'ReaceleraMACD', title:'Reacelera MACD', show:true },
+  { key:'DistMA50%', title:'DistMA50%', show:true },
+
+  // Fundamentales
+  { key:'Name', title:'Name', show:false },
+  { key:'Asset', title:'Asset', show:false },
+  { key:'Sector', title:'Sector', show:false },
+  { key:'Industry', title:'Industry', show:false },
+  { key:'MarketCap', title:'MarketCap', show:false },
+  { key:'TrailingPE', title:'Trailing PE', show:false },
+  { key:'ForwardPE', title:'Forward PE', show:false },
+  { key:'PriceToBook', title:'Price / Book', show:false },
+  { key:'EVtoEBITDA', title:'EV / EBITDA', show:false },
+  { key:'ProfitMargin%', title:'Profit Margin %', show:false },
+  { key:'ROE%', title:'ROE %', show:false },
+  { key:'FreeCashFlow', title:'Free Cash Flow', show:false },
+  { key:'TotalDebt', title:'Total Debt', show:false },
+  { key:'DividendYield%', title:'Div. Yield %', show:false },
+  { key:'PayoutRatio%', title:'Payout %', show:false },
+  { key:'Beta', title:'Beta', show:false },
+  { key:'ExpenseRatio%', title:'Expense Ratio %', show:false },
+  { key:'AUM', title:'AUM', show:false },
+  { key:'Category', title:'Category', show:false },
+  { key:'FundYield%', title:'Fund Yield %', show:false },
+  { key:'Ret3Y%', title:'Ret 3Y %', show:false },
+  { key:'Ret5Y%', title:'Ret 5Y %', show:false },
+  { key:'recommendationKey', title:'Reco Key', show:false },
+  { key:'averageAnalystRating', title:'Avg Analyst Rating', show:false }
+];
+
+// Derivados para DataTables
+const COLMAP  = LAYOUT.map(c => c.key);
+const TITLES  = LAYOUT.map(c => c.title);
+const VISIBLE = LAYOUT.map(c => c.show);
+
+// --- 2️⃣ FORMATEADORES ---
+function pct(v){ if(v==null||v==="")return ""; const n=Number(v); if(!isFinite(n))return ""; const s=n>0?"+":(n<0?"":""); return s+n.toFixed(1)+"%"; }
+function smart(v){ if(v==null||v==="")return ""; const n=Number(v); if(!isFinite(n))return ""; const prec=Math.abs(n)>=1000?0:2; return n.toLocaleString(undefined,{minimumFractionDigits:prec,maximumFractionDigits:prec}); }
+function pint(v){ if(v==null||v==="")return ""; const n=Number(v); if(!isFinite(n))return ""; return String(Math.round(n)); }
+function sgn(v,d=2){ if(v==null||v==="")return ""; const n=Number(v); if(!isFinite(n))return ""; const s=n>0?"+":(n<0?"":""); return s+n.toFixed(d); }
+function biasBadge(b){ if(b==="🟢")return '<span class="badge green">🟢</span>'; if(b==="🔴")return '<span class="badge red">🔴</span>'; return '<span class="badge gray">'+(b||"–")+'</span>'; }
+function pctSpan(v){ if(v==null||v==="") return ""; const n=Number(v); if(!isFinite(n)) return ""; const cls=n>0?"pos":n<0?"neg":"neu"; const sgn=n>0?"+":(n<0?"":""); return `<span class="${cls}">${sgn}${n.toFixed(1)}%</span>`; }
+function sgnSpan(v,d=2){ if(v==null||v==="") return ""; const n=Number(v); if(!isFinite(n)) return ""; const cls=n>0?"pos":n<0?"neg":"neu"; const sgn=n>0?"+":(n<0?"":""); return `<span class="${cls}">${sgn}${n.toFixed(d)}</span>`; }
+function slopeNormChip(v){ if(v==null||v==="")return ""; const n=Number(v); if(!isFinite(n))return ""; const up=n>0,flat=n===0; const arrow=flat?"→":(up?"↗":"↘"); const cls=up?"pos":(!up&&!flat?"neg":"neu"); return `<span class="${cls}">${arrow} ${n.toFixed(2)}</span>`; }
+function tickerLink(v){ const t=String(v||""); if(!t) return ""; const href=`triple_screen.html?ticker=${encodeURIComponent(t)}`; return `<a class="ticker-link" href="${href}" target="_blank" rel="noopener">${t}</a>`; }
+function humanMoney(x){ const n=Number(x); if(!isFinite(n)) return ''; const ab=Math.abs(n); if(ab>=1e12)return (n/1e12).toFixed(2)+'T'; if(ab>=1e9)return (n/1e9).toFixed(2)+'B'; if(ab>=1e6)return (n/1e6).toFixed(2)+'M'; return n.toLocaleString(); }
+
+
+// Índices actuales (para referencia rápida)
+/*
+0 Ticker
+1 PriceNow  2 Close(ayer)  3 Close(hoy)  4 Bias
+5 Δ-1d(now) 6 Δ-open(now)
+7 Δ-1d 8 Δ-2d 9 Δ-5d 10 Δ-lf 11 Δ-pf
+12 RSI 13 MACDh 14 MACD_slope3 15 MACD_slope3_norm
+16 Sup20 17 Res20 18 Sup60 19 Res60
+20 PhaseW 21 DiasFase 22 PhasePrev 23 PhaseChanged 24 U2_entry
+25 Force 26 DistRes% 27 TF 28 AsOf
+29 AboveMA50 30 AboveMA200 31 BreakRes20 32 BreakRes60 33 ReaceleraMACD 34 DistMA50%
+35 Name, 36 Asset, 37 Sector, 38 Industry,
+39 MarketCap, 40 TrailingPE, 41 ForwardPE, 42 PriceToBook, 43 EVtoEBITDA,
+44 ProfitMargin%, 45 ROE%, 46 FreeCashFlow, 47 TotalDebt,
+48 DividendYield%, 49 PayoutRatio%, 50 Beta,
+51 ExpenseRatio%, 52 AUM, 53 Category,
+54 FundYield%, 55 Ret3Y%, 56 Ret5Y%,
+57 recommendationKey, 58 averageAnalystRating
+*/
+
+// --- 3️⃣ DEFINICIÓN DE FORMATEOS POR COLUMNA ---
+const COLDEFS = [
+  {targets:[4,20,22,23,24,27,28], className:'dt-center'},
+  {targets:[1,2,3,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,25,26], type:'num'},
+  {targets:[1,2,3,16,17,18,19], render:(d,t)=> t==='display'? smart(d):d},
+  {targets:[12,21], render:(d,t)=> t==='display'? pint(d):d},
+  {targets:13, render:(d,t)=> t==='display'? sgn(d,1):d},
+  {targets:14, render:(d,t)=> t==='display'? sgn(d,3):d},
+  {targets:15, render:(d,t)=> t==='display'? sgn(d,2):d},
+  {targets:4,  render:(d,t)=> t==='display'? biasBadge(d):d},
+  {targets:[5,6,7,8,9,10,11,25,26,34], render:(d,t)=> t==='display'? pctSpan(d):d},
+  {targets:[13,14], render:(d,t)=> t==='display'? sgnSpan(d,1):d},
+  {targets:[15], render:(d,t)=> t==='display'? slopeNormChip(d):d},
+  {targets:[40,41,42,43,50], render:(d,t)=> t==='display'? sgn(d,2):d},
+  {targets:[29,30,31,32,33,23,24], className:'dt-center'},
+  {targets:[29,30,31,32,33,23,24], render:(d,t)=> t==='display' ? (d ? '✅' : '—') : d},
+  {targets:[39,46,47,52], render:(d,t)=> t==='display'? humanMoney(d):d},
+  {targets:[44,45,48,49,51,54,55,56], render:(d,t)=> t==='display'? pct(d,2):d},
+  {targets:0, render:(d,t)=> t==='display' ? tickerLink(d) : d},
+];
+
+
+async function loadData() {
+  try {
+    const data = EMBEDDED_MODE
+      ? PRELOADED_DATA
+      : await (await fetch('u2_screener.json?_=' + Date.now())).json();
+    const rows = Array.isArray(data) ? data.map(r => COLMAP.map(k => (r[k] ?? ""))) : [];
+
+    // solo refresca filas
+    table.clear().rows.add(rows).draw(false);
+
+    // banner
+    const tf   = data.find(r => r.TF)?.TF || '–';
+    const asof = data.find(r => r.AsOf)?.AsOf || '–';
+    const lastUpdate = document.getElementById('lastUpdate');
+    const tfUsed     = document.getElementById('tfUsed');
+    const asofDisplay = document.querySelector('#asofDisplay .asof-value');
+    if (lastUpdate) lastUpdate.textContent = new Date().toLocaleTimeString();
+    if (tfUsed)     tfUsed.textContent     = tf;
+    if (asofDisplay) asofDisplay.textContent = asof;
+  } catch (err) {
+    console.error("❌ Error al cargar JSON:", err);
+  }
+}
+
+function init() {
+
+
+  // 1) inicializa DataTable VACÍO (sin esperar al fetch)
+  table = new DataTable('#tbl', {
+    data: [],
+    columns: COLMAP.map((k,i)=>({ title: TITLES[i] || k })),
+    pageLength: 50,
+    order: [],
+    stateSave: true,
+    fixedHeader: true,
+    colReorder: { realtime: false },
+    orderCellsTop: true,
+    autoWidth: true,          // te lo dejo como querías
+    deferRender: true,        // ayuda a que no parpadee
+    dom: 'Bfrtip',            // sin Q
+    buttons: ['copy', 'csv', 'excel'],
+    language: { url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/es-ES.json' },
+    columnDefs: COLDEFS,
+    rowCallback: function (row, data) {
+      const iTicker = COLMAP.indexOf('Ticker');
+      if (iTicker < 0) return;
+      const tip = [
+        `Name: ${data[COLMAP.indexOf('Name')] || ''}`,
+        `Industry: ${data[COLMAP.indexOf('Industry')] || ''}`,
+        `Market Cap: ${humanMoney(data[COLMAP.indexOf('MarketCap')])}`,
+        `Free Cash Flow: ${humanMoney(data[COLMAP.indexOf('FreeCashFlow')])}`,
+        `Total Debt: ${humanMoney(data[COLMAP.indexOf('TotalDebt')])}`
+      ].join('\n');
+      $('td', row).eq(iTicker).attr('title', tip);
+    }
+  });
+
+  // crea headers una sola vez
+  if (!document.querySelector('#tbl thead th')) {
+    document.querySelector('#tbl thead').innerHTML =
+  '<tr class="headers">' + TITLES.map(t => `<th>${t}</th>`).join('') + '</tr>';
+  }
+
+  table.on('init', function () {
+    buildColumnFilters();                 // crea los inputs cuando DT ya tomó control del thead
+    refreshAllHeaderTooltips();           // tooltips en header normal + fijo
+    table.columns.adjust().draw(false);   // realinea
+  });
+  
+    // ⬇️ AQUÍ va el de reordenar columnas (solo si ColReorder está cargado)
+  table.on('column-reorder', function () {
+    const $thead = $(table.table().header()).closest('thead');
+    $thead.find('tr.filters').remove();
+    buildColumnFilters();
+    table.columns.adjust().draw(false);
+    if (table.fixedHeader && table.fixedHeader.adjust) table.fixedHeader.adjust();
+  });
+
+  // 3) primera carga de datos y refrescos
+  loadData();
+  if (!EMBEDDED_MODE) setInterval(loadData, 60000);
+}
+
+
+
+// arranca ya (el script está al final del <body>, el DOM ya está listo)
+init();
+
+table.on('column-reorder draw', refreshAllHeaderTooltips);
+
+function setHeaderTooltips(root) {
+    const H = $(root).find('thead th');
+    H.eq(1).attr('title','Último close de la vela intradía (p.ej. 1h) = PriceNow');
+    H.eq(3).attr('title','Cierre oficial de AYER (diario)');
+    H.eq(2).attr('title','Última vela DIARIA (puede ser parcial si aún no cierra) = Close 1d Hoy');
+
+    H.eq(5).attr('title','PriceNow vs Close(ayer)');
+    H.eq(6).attr('title','PriceNow vs Open(hoy)');
+    H.eq(7).attr('title','Close 1d Hoy vs Close session -1 (ayer)');
+    H.eq(8).attr('title','Close 1d Hoy vs Close session -2');
+    H.eq(9).attr('title','Close 1d Hoy vs Close session -5');
+    H.eq(10).attr('title','Close 1d Hoy vs Close Viernes pasado');
+    H.eq(11).attr('title','Close 1d Hoy vs Close Viernes antepasado');
+
+    H.eq(13).attr('title','Histograma MACD (impulso), con signo');
+    H.eq(14).attr('title','Pendiente del MACDh (absoluta)');
+    H.eq(15).attr('title','Pendiente normalizada: comparables entre tickers (no %)');
+
+    H.eq(16).attr('title','Soporte Donchian 20 (corto plazo)');
+    H.eq(17).attr('title','Resistencia Donchian 20 (corto plazo)');
+    H.eq(18).attr('title','Soporte Donchian 60 (medio plazo)');
+    H.eq(19).attr('title','Resistencia Donchian 60 (medio plazo)');
+
+    H.eq(29).attr('title','Close(hoy) ≥ MA50 (diario)');
+    H.eq(30).attr('title','Close(hoy) ≥ MA200 (diario)');
+    H.eq(31).attr('title','Close(hoy) ≥ Res20');
+    H.eq(32).attr('title','Close(hoy) ≥ Res60');
+    H.eq(33).attr('title','MACDh>0 y slope_norm>0');
+    H.eq(34).attr('title','Distancia a MA50 diaria en %');
+
+    H.eq(39).attr('title','Capitalización de mercado');
+    H.eq(40).attr('title','P/E trailing (12m)');
+    H.eq(41).attr('title','P/E forward (estimado)');
+    H.eq(42).attr('title','Precio / Valor en libros');
+    H.eq(43).attr('title','Enterprise Value / EBITDA');
+    H.eq(44).attr('title','Margen neto %');
+    H.eq(45).attr('title','Return on Equity %');
+    H.eq(48).attr('title','Rendimiento de dividendo %');
+    H.eq(49).attr('title','Payout de utilidades %');
+    H.eq(51).attr('title','Gasto anual del fondo/ETF %');
+    H.eq(57).attr('title','Clave de recomendación (buy/hold/sell)');
+    H.eq(58).attr('title','Promedio rating analistas (menor=mejor)');
+}
+
+function refreshAllHeaderTooltips(){
+  setHeaderTooltips($('#tbl'));                         // header normal
+  $('.dtfh-floatingparent').each(function(){ setHeaderTooltips(this); });  // header fijo
+
+}
+
+// Filtros rápidos
+$('#globalSearch').on('input', function(){ table.search(this.value).draw(); });
+$('#biasFilter').on('change', function(){ const v=this.value; table.column(4).search(v?`^${v}$`:"",true,false).draw(); });
+$('#phaseFilter').on('change', function(){ const v=this.value; table.column(20).search(v?`^${v}$`:"",true,false).draw(); });
+
+// --- toggle filtros (header real + header flotante) ---
+const FILTERS_KEY = 'filters_on';
+
+function setFiltersVisible(v){
+  const disp = v ? '' : 'none';
+  // thead REAL que usa DataTables
+  $(table.table().header()).closest('thead').find('tr.filters').css('display', disp);
+  // thead CLONADO de FixedHeader (si está)
+  $('.dtfh-floatingparent thead tr.filters').css('display', disp);
+  table.columns.adjust().draw(false);
+  if (table.fixedHeader && table.fixedHeader.adjust) table.fixedHeader.adjust();
+  localStorage.setItem(FILTERS_KEY, v ? '1' : '0');
+}
+
+let filtersVisible = (localStorage.getItem(FILTERS_KEY) === '1');
+
+$('#toggleColFilters').off('click.toggle').on('click.toggle', function(){
+  filtersVisible = !filtersVisible;
+  setFiltersVisible(filtersVisible);
+});
+
+
+function buildColumnFilters() {
+  const $thead = $(table.table().header()).closest('thead'); // usa el thead REAL de DataTables
+  const $headers = $thead.find('tr.headers');
+  let $filters = $thead.find('tr.filters');
+
+  if (!$filters.length) {
+    $filters = $('<tr class="filters"></tr>').appendTo($thead);
+  }
+  $filters.empty();
+
+  $headers.find('th').each(function (i) {
+    // Bias column
+    if (i === COLMAP.indexOf('Bias')) {
+      $filters.append(`<th><select data-col="${i}">
+        <option value="">(Todos)</option><option>🟢</option><option>🔴</option><option>⚪</option>
+      </select></th>`);
+    }
+    // PhaseW column
+    else if (i === COLMAP.indexOf('PhaseW')) {
+      $filters.append(`<th><select data-col="${i}">
+        <option value="">(Todos)</option><option>U2</option><option>U1/D3</option><option>D4</option><option>Mixta</option>
+      </select></th>`);
+    }
+    // Default text input
+    else {
+      $filters.append(`<th><input type="text" data-col="${i}" placeholder="Filtrar..."></th>`);
+    }
+  });
+
+ 
+  // evita listeners duplicados
+  $thead.off('keyup.filter change.filter');
+
+  // input de texto (delegado)
+  $thead.on('keyup.filter change.filter', 'tr.filters input', function () {
+    const c = +this.dataset.col;
+    if (Number.isInteger(c)) table.column(c).search(this.value).draw();
+  });
+
+  // select exact match (delegado)
+  $thead.on('change.filter', 'tr.filters select', function () {
+    const c = +this.dataset.col, v = this.value;
+    if (Number.isInteger(c)) table.column(c).search(v ? `^${v}$` : "", true, false).draw();
+  });
+  // 🚫 Desactiva sorting en esa fila (importante)
+  $filters.find('th')
+    .removeClass('sorting sorting_asc sorting_desc dt-orderable-asc dt-orderable-desc')
+    .css('cursor', 'default')
+    .off('click.DT');
+
+  table.columns.adjust().draw(false);
+  if (table.fixedHeader && table.fixedHeader.adjust) table.fixedHeader.adjust();
+}
+
+// --- FIX: evita sorting al hacer click en los inputs/select de la fila de filtros ---
+$('#tbl thead').on('click', 'tr.filters th', function(e) {
+  e.stopImmediatePropagation(); // detiene el evento antes de que DataTables lo use
+});
+
+$('#resetAll').on('click', function(){
+  $('#globalSearch').val(''); $('#biasFilter').val(''); $('#phaseFilter').val('');
+  table.search(''); table.columns().search(''); table.order([]).draw();
+  $('#tbl thead tr.filters input').val(''); $('#tbl thead tr.filters select').val('');
+});
+$('#clearState').on('click', function(){ table.state.clear(); location.reload(); });
+
+// Columnas a ocultar/mostrar con el botón
+const FUND_KEYS = [
+  'Name','Sector','Industry','MarketCap',
+  'FreeCashFlow','TotalDebt','AUM','Category'
+];
+
+// Mapa nombre->índice según COLMAP
+const IDX = Object.fromEntries(COLMAP.map((k,i)=>[k,i]));
+const FUND_IDX = FUND_KEYS.map(k => IDX[k]).filter(i => i >= 0);
+
+// Función para aplicar visibilidad y actualizar botón + persistencia
+function setFundamentalsVisible(visible){
+  if (!table) return;
+  const idx = FUND_KEYS.map(k => COLMAP.indexOf(k)).filter(i => i >= 0);
+  idx.forEach(i => table.column(i).visible(visible, false));
+  table.columns.adjust().draw(false);
+  localStorage.setItem('fundColsVisible', visible ? '1' : '0');
+  document.getElementById('toggleFundamentals').textContent = visible ? 'Ocultar fund.' : 'Mostrar fund.';
+}
+
+// Estado inicial
+const savedfund = localStorage.getItem('fundColsVisible');
+setFundamentalsVisible(savedfund === '1');
+
+
+// Click para alternar
+document.getElementById('toggleFundamentals').addEventListener('click', () => {
+  const idx = COLMAP.indexOf(FUND_KEYS[0]);
+  const visible = table.column(idx).visible();
+  setFundamentalsVisible(!visible);
+});
+
+// ---- Control de tamaño de fuente ----
+const slider = document.getElementById('fontSlider');
+if (slider) {
+  const saved = localStorage.getItem('tblFontPx');
+  if (saved) {
+    document.documentElement.style.setProperty('--tbl-font', saved+'px');
+    slider.value = saved;
+  }
+  slider.addEventListener('input', e => {
+    const v = e.target.value;
+    document.documentElement.style.setProperty('--tbl-font', v+'px');
+    localStorage.setItem('tblFontPx', v);
+  });
+}
+</script>
+</body></html>

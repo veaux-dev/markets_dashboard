@@ -13,6 +13,7 @@ Sistema modular en Python para **recolección de datos de mercado, almacenamient
 - `main_mkt_db.py` → orquestador principal de alertas.
 - `u2_screener_runner.py` → genera `u2_screener.json` + HTML embebido con loop.
 - `u2_screener_FIJO.html` → template del screener (la versión embebida se genera).
+- `triple_screen.html` → vista triple screen (usa `details/<ticker>.json`).
 
 ---
 
@@ -93,6 +94,8 @@ state/
 out/
  ├── u2_screener.json
  └── u2_screener_FIJO_embedded.html
+out/details/
+ └── <TICKER>.json
 ```
 
 ### ✅ Carpetas requeridas (antes de levantar el stack)
@@ -115,3 +118,4 @@ Si no existen, créalos antes de `docker compose up`.
 - `u2_screener_FIJO.html` es el template manual.
 - `u2_screener_FIJO_embedded.html` se genera por el runner.
 - Las alertas U2 se disparan cuando `U2_entry` es true y no se ha notificado antes (se guarda en `state/u2_alert_state.json`).
+- El triple screen consume `details/<ticker>.json` y se abre desde el link en la columna Ticker.

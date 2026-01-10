@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Triple Screen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+      :root{
+        --bg-1:#0b1220;
+        --bg-2:#0f1b2b;
+        --ink:#e6edf5;
+        --muted:#9fb2c7;
+        --accent:#3ddc97;
+        --accent-2:#ffb454;
+        --danger:#ff6b6b;
+        --card:#0f1e2f;
+        --stroke:#1c2b3a;
+        --glow:rgba(61,220,151,0.22);
+      }
+      *{box-sizing:border-box}
+      body{
+        margin:0;
+        font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Arial,sans-serif;
+        color:var(--ink);
+        background:
+          radial-gradient(900px 420px at 10% -10%, #1c3a52 0%, rgba(28,58,82,0) 60%),
+          radial-gradient(700px 420px at 90% 0%, #17303f 0%, rgba(23,48,63,0) 60%),
+          linear-gradient(160deg, var(--bg-1), var(--bg-2));
+        min-height:100vh;
+      }
+      .wrap{
+        width:100vw;
+        max-width:none;
+        margin:0;
+        padding:24px 32px 60px;
+      }
+      .hero{
+        display:flex;
+        align-items:flex-end;
+        justify-content:space-between;
+        gap:16px;
+        margin-bottom:22px;
+      }
+      .title{
+        font-family:"Space Grotesk",system-ui,sans-serif;
+        font-size:34px;
+        font-weight:700;
+        letter-spacing:0.5px;
+      }
+      .subtitle{
+        color:var(--muted);
+        font-size:14px;
+      }
+      .actions{
+        display:flex;
+        gap:10px;
+        align-items:center;
+        flex-wrap:wrap;
+      }
+      .pill{
+        background:rgba(255,255,255,0.04);
+        border:1px solid var(--stroke);
+        color:var(--muted);
+        padding:8px 12px;
+        border-radius:999px;
+        font-size:12px;
+      }
+      .back{
+        color:var(--ink);
+        text-decoration:none;
+        border:1px solid var(--stroke);
+        padding:8px 14px;
+        border-radius:10px;
+        font-size:14px;
+        background:rgba(255,255,255,0.03);
+      }
+      .ticker-input{
+        padding:8px 12px;
+        border-radius:10px;
+        border:1px solid var(--stroke);
+        background:#0b1724;
+        color:var(--ink);
+        font-size:14px;
+      }
+      .grid{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:18px;
+        min-height:calc(100vh - 220px);
+      }
+      .card{
+        background:var(--card);
+        border:1px solid var(--stroke);
+        border-radius:18px;
+        padding:18px;
+        box-shadow:0 12px 40px rgba(0,0,0,0.35);
+        position:relative;
+        overflow:hidden;
+        animation:rise 0.6s ease both;
+        display:flex;
+        flex-direction:column;
+        min-height:calc(100vh - 260px);
+      }
+      .card:before{
+        content:"";
+        position:absolute;
+        inset:-40% 30% auto -60%;
+        height:220px;
+        background:radial-gradient(closest-side, var(--glow), rgba(0,0,0,0));
+        opacity:0.7;
+        pointer-events:none;
+      }
+      .card h2{
+        font-family:"Space Grotesk",system-ui,sans-serif;
+        font-size:18px;
+        margin:0 0 8px;
+      }
+      .metrics{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:10px;
+        margin-top:10px;
+      }
+      .metric{
+        padding:10px 12px;
+        border:1px solid var(--stroke);
+        border-radius:12px;
+        background:rgba(255,255,255,0.02);
+      }
+      .metric .label{
+        color:var(--muted);
+        font-size:12px;
+      }
+      .metric .value{
+        font-size:16px;
+        font-weight:600;
+        margin-top:4px;
+      }
+      .badge{
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+        padding:6px 10px;
+        border-radius:999px;
+        font-size:12px;
+        border:1px solid var(--stroke);
+        background:rgba(255,255,255,0.03);
+      }
+      .badge.buy{color:var(--accent)}
+      .badge.sell{color:var(--danger)}
+      .badge.neutral{color:var(--muted)}
+      .chart-stack{
+        display:grid;
+        grid-template-rows:2.1fr 1fr 1fr;
+        gap:12px;
+        flex:1;
+        margin-top:10px;
+      }
+      .chart{
+        width:100%;
+        height:100%;
+        border:1px solid var(--stroke);
+        border-radius:12px;
+        background:#0c1622;
+        position:relative;
+        overflow:hidden;
+      }
+      .chart-label{
+        position:absolute;
+        top:8px;
+        left:10px;
+        font-size:11px;
+        color:#a3b2c8;
+        letter-spacing:0.3px;
+        background:rgba(10,18,30,0.65);
+        padding:4px 8px;
+        border-radius:999px;
+        border:1px solid #1f2d3a;
+      }
+      .empty{
+        padding:18px;
+        border:1px dashed var(--stroke);
+        border-radius:16px;
+        color:var(--muted);
+      }
+      @keyframes rise{
+        from{transform:translateY(12px); opacity:0}
+        to{transform:translateY(0); opacity:1}
+      }
+      @media (max-width:720px){
+        .hero{flex-direction:column; align-items:flex-start}
+        .title{font-size:28px}
+      }
+      @media (max-width:1100px){
+        .grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+      }
+      @media (max-width:760px){
+        .grid{grid-template-columns:1fr;}
+        .wrap{padding:22px 16px 48px;}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <div>
+          <div class="title">Triple Screen</div>
+          <div class="subtitle">Multi-timeframe view for one ticker</div>
+        </div>
+        <div class="actions">
+          <input class="ticker-input" id="tickerInput" placeholder="AAPL.MX">
+          <button class="back" id="loadBtn">Load</button>
+          <a class="back" href="u2_screener_FIJO_embedded.html">Back to screener</a>
+        </div>
+      </div>
+
+      <div class="pill" id="metaLine">Waiting for ticker...</div>
+      <div style="height:14px"></div>
+
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <script>
+      const grid = document.getElementById("grid");
+      const metaLine = document.getElementById("metaLine");
+      const tickerInput = document.getElementById("tickerInput");
+      const loadBtn = document.getElementById("loadBtn");
+
+      function getTickerFromUrl(){
+        const p = new URLSearchParams(location.search);
+        return p.get("ticker") || "";
+      }
+
+      function badgeClass(bias){
+        if (bias === "buy") return "buy";
+        if (bias === "sell") return "sell";
+        return "neutral";
+      }
+
+      function safe(v){
+        return (v === null || v === undefined || v === "") ? "—" : v;
+      }
+
+      function initChart(container, height){
+        return LightweightCharts.createChart(container, {
+          height,
+          layout: { background: { color: "#0c1622" }, textColor: "#cbd5e1" },
+          grid: { vertLines: { color: "#172636" }, horzLines: { color: "#172636" } },
+          rightPriceScale: { borderColor: "#1f2d3a" },
+          timeScale: { borderColor: "#1f2d3a" },
+          watermark: { visible: false },
+        });
+      }
+
+      function renderFrame(tf, data){
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h2>${tf.toUpperCase()}</h2>
+          <div class="badge ${badgeClass(data.bias)}">bias: ${safe(data.bias)}</div>
+          <div class="chart-stack">
+            <div class="chart" data-role="price">
+              <div class="chart-label">Price · EMA · Support/Resist · Volume</div>
+            </div>
+            <div class="chart" data-role="rsi">
+              <div class="chart-label">RSI</div>
+            </div>
+            <div class="chart" data-role="macd">
+              <div class="chart-label">MACD (hist + signal)</div>
+            </div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><div class="label">Close</div><div class="value">${safe(data.close)}</div></div>
+            <div class="metric"><div class="label">RSI</div><div class="value">${safe(data.rsi)}</div></div>
+            <div class="metric"><div class="label">MACD hist</div><div class="value">${safe(data.macd_hist)}</div></div>
+            <div class="metric"><div class="label">As of</div><div class="value">${safe(data.as_of)}</div></div>
+          </div>
+        `;
+        grid.appendChild(card);
+        const priceEl = card.querySelector('[data-role="price"]');
+        const rsiEl = card.querySelector('[data-role="rsi"]');
+        const macdEl = card.querySelector('[data-role="macd"]');
+
+        const candles = (data.series && data.series.candles) || [];
+        const emaShort = (data.series && data.series.ema_short) || [];
+        const emaLong = (data.series && data.series.ema_long) || [];
+        const support = (data.series && data.series.support) || [];
+        const resistance = (data.series && data.series.resistance) || [];
+        const volumeSeries = (data.series && data.series.volume) || [];
+        const rsiSeries = (data.series && data.series.rsi) || [];
+        const macdHist = (data.series && data.series.macd_hist) || [];
+        const macdSignal = (data.series && data.series.macd_signal) || [];
+
+        requestAnimationFrame(() => {
+          const priceChart = initChart(priceEl, Math.max(240, priceEl.clientHeight));
+          const rsiChart = initChart(rsiEl, Math.max(140, rsiEl.clientHeight));
+          const macdChart = initChart(macdEl, Math.max(140, macdEl.clientHeight));
+
+          if (candles.length) {
+            const candleSeries = priceChart.addCandlestickSeries({
+              upColor: "#3ddc97",
+              downColor: "#ff6b6b",
+              borderVisible: false,
+              wickUpColor: "#3ddc97",
+              wickDownColor: "#ff6b6b",
+            });
+            candleSeries.setData(candles);
+          }
+
+          if (volumeSeries.length) {
+            priceChart.priceScale('volume').applyOptions({
+              scaleMargins: { top: 0.8, bottom: 0 }
+            });
+            const volumeColored = volumeSeries.map((p, i) => {
+              const up = candles[i] ? candles[i].close >= candles[i].open : (p.value >= 0);
+              return {
+                time: p.time,
+                value: p.value,
+                color: up ? "#22c55e" : "#f97316",
+              };
+            });
+            priceChart.addHistogramSeries({
+              color: "#475569",
+              priceFormat: { type: "volume" },
+              priceScaleId: "volume",
+            }).setData(volumeColored);
+          }
+
+          if (emaShort.length) {
+            priceChart.addLineSeries({ color: "#4cc9f0", lineWidth: 2 }).setData(emaShort);
+          }
+          if (emaLong.length) {
+            priceChart.addLineSeries({ color: "#f9c74f", lineWidth: 2 }).setData(emaLong);
+          }
+          if (support.length) {
+            priceChart.addLineSeries({ color: "#94a3b8", lineWidth: 1, lineStyle: 2 }).setData(support);
+          }
+          if (resistance.length) {
+            priceChart.addLineSeries({ color: "#f97316", lineWidth: 1, lineStyle: 2 }).setData(resistance);
+          }
+
+          if (rsiSeries.length) {
+            rsiChart.addLineSeries({ color: "#a855f7", lineWidth: 2 }).setData(rsiSeries);
+          }
+          if (macdHist.length) {
+            const macdColored = macdHist.map(p => ({
+              time: p.time,
+              value: p.value,
+              color: p.value >= 0 ? "#22c55e" : "#ef4444",
+            }));
+            macdChart.addHistogramSeries({ color: "#60a5fa" }).setData(macdColored);
+          }
+          if (macdSignal.length) {
+            macdChart.addLineSeries({ color: "#f472b6", lineWidth: 2 }).setData(macdSignal);
+          }
+        });
+      }
+
+      function renderEmpty(msg){
+        grid.innerHTML = "";
+        const box = document.createElement("div");
+        box.className = "empty";
+        box.textContent = msg;
+        grid.appendChild(box);
+      }
+
+      async function loadTicker(ticker){
+        if (!ticker) {
+          renderEmpty("Enter a ticker to load details.");
+          return;
+        }
+        const url = `details/${encodeURIComponent(ticker)}.json`;
+        try{
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error("Not found");
+          const payload = await resp.json();
+          grid.innerHTML = "";
+          metaLine.textContent = `Ticker: ${payload.ticker} | Updated: ${payload.updated_at}`;
+          const tfs = payload.timeframes || {};
+          const order = ["1d","2h","15m"];
+          order.forEach(tf => {
+            if (tfs[tf]) renderFrame(tf, tfs[tf]);
+          });
+          if (!order.some(tf => tfs[tf])) {
+            renderEmpty("No timeframe data available.");
+          }
+        }catch(err){
+          renderEmpty("No detail file found for this ticker.");
+        }
+      }
+
+      loadBtn.addEventListener("click", () => {
+        const t = tickerInput.value.trim();
+        if (t) location.search = `?ticker=${encodeURIComponent(t)}`;
+      });
+
+      const initial = getTickerFromUrl();
+      if (initial) {
+        tickerInput.value = initial;
+        loadTicker(initial);
+      } else {
+        renderEmpty("Enter a ticker to load details.");
+      }
+    </script>
+  </body>
+</html>

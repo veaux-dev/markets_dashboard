@@ -31,6 +31,114 @@ def build_embedded_html(json_path: str, template_path: str, out_path: str) -> No
     Path(out_path).write_text(html_text, encoding="utf-8")
 
 
+def _safe_float(v):
+    if v is None:
+        return None
+    try:
+        fv = float(v)
+    except Exception:
+        return None
+    return None if pd.isna(fv) else fv
+
+
+def _clean_list(values):
+    return [_safe_float(v) for v in values]
+
+
+def _series_line(times, series):
+    out = []
+    for t, v in zip(times, series):
+        fv = _safe_float(v)
+        if t is None or fv is None:
+            continue
+        out.append({"time": t, "value": fv})
+    return out
+
+
+def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict) -> None:
+    details_dir.mkdir(parents=True, exist_ok=True)
+    for ticker in tickers:
+        tfs = working_db.get(ticker, {})
+        if not tfs:
+            continue
+
+        payload = {
+            "ticker": ticker,
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+            "timeframes": {},
+        }
+
+        for tf, df in tfs.items():
+            if tf not in points_by_tf or df is None or df.empty:
+                continue
+            n = int(points_by_tf.get(tf, 0) or 0)
+            if n <= 0:
+                continue
+
+            tail = df.tail(n)
+            ts = pd.to_datetime(tail.index, errors="coerce", utc=True)
+            ts_str = [t.isoformat() if pd.notna(t) else None for t in ts]
+            ts_s = [int(t.timestamp()) if pd.notna(t) else None for t in ts]
+
+            closes = _clean_list(tail.get("close", pd.Series(dtype=float)).tolist())
+            rsi = tail.get("rsi", pd.Series(dtype=float)).iloc[-1] if "rsi" in tail else None
+            macdh = tail.get("macd_hist", pd.Series(dtype=float)).iloc[-1] if "macd_hist" in tail else None
+            bias = tail.get("bias", pd.Series(dtype=object)).iloc[-1] if "bias" in tail else None
+
+            candles = []
+            if all(c in tail.columns for c in ("open", "high", "low", "close")):
+                opens = tail["open"].tolist()
+                highs = tail["high"].tolist()
+                lows = tail["low"].tolist()
+                closes_c = tail["close"].tolist()
+                for t, o, h, l, c in zip(ts_s, opens, highs, lows, closes_c):
+                    if t is None:
+                        continue
+                    fo = _safe_float(o)
+                    fh = _safe_float(h)
+                    fl = _safe_float(l)
+                    fc = _safe_float(c)
+                    if None in (fo, fh, fl, fc):
+                        continue
+                    candles.append({"time": t, "open": fo, "high": fh, "low": fl, "close": fc})
+
+            ema_short = _series_line(ts_s, tail.get("ema_short", pd.Series(dtype=float)).tolist())
+            ema_long = _series_line(ts_s, tail.get("ema_long", pd.Series(dtype=float)).tolist())
+            sup = _series_line(ts_s, tail.get("donchian_low", pd.Series(dtype=float)).tolist())
+            res = _series_line(ts_s, tail.get("donchian_high", pd.Series(dtype=float)).tolist())
+            rsi_series = _series_line(ts_s, tail.get("rsi", pd.Series(dtype=float)).tolist())
+            macd_hist = _series_line(ts_s, tail.get("macd_hist", pd.Series(dtype=float)).tolist())
+            macd_signal = _series_line(ts_s, tail.get("macd_signal", pd.Series(dtype=float)).tolist())
+            volume_series = _series_line(ts_s, tail.get("volume", pd.Series(dtype=float)).tolist())
+
+            payload["timeframes"][tf] = {
+                "as_of": ts_str[-1] if ts_str else None,
+                "close": closes[-1] if closes else None,
+                "rsi": _safe_float(rsi),
+                "macd_hist": _safe_float(macdh),
+                "bias": bias,
+                "series": {
+                    "ts": ts_str,
+                    "close": closes,
+                    "candles": candles,
+                    "ema_short": ema_short,
+                    "ema_long": ema_long,
+                    "support": sup,
+                    "resistance": res,
+                    "volume": volume_series,
+                    "rsi": rsi_series,
+                    "macd_hist": macd_hist,
+                    "macd_signal": macd_signal,
+                },
+            }
+
+        if not payload["timeframes"]:
+            continue
+
+        out_path = details_dir / f"{ticker}.json"
+        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def load_state(state_path: str) -> dict:
     state_file = Path(state_path)
     if state_file.exists():
@@ -91,6 +199,7 @@ def run_once(cfg: dict) -> None:
     template_path = cfg.get("template_path", "u2_screener_FIJO.html")
     include_fundamentals = cfg.get("include_fundamentals", True)
     intra_tf = cfg.get("intra_tf", "1h")
+    details_subdir = cfg.get("details_subdir", "details")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -267,6 +376,14 @@ def run_once(cfg: dict) -> None:
     if cfg.get("publish_template", True):
         template_out = output_dir / "u2_screener_FIJO.html"
         template_out.write_text(Path(template_path).read_text(encoding="utf-8"), encoding="utf-8")
+
+    triple_template = Path(cfg.get("triple_template_path", "triple_screen.html"))
+    if triple_template.exists():
+        triple_out = output_dir / "triple_screen.html"
+        triple_out.write_text(triple_template.read_text(encoding="utf-8"), encoding="utf-8")
+
+    points_by_tf = cfg.get("detail_points", {"1d": 120, "2h": 120, "15m": 120})
+    build_details(working_db, tickers, output_dir / details_subdir, points_by_tf)
 
     notify_u2_entries(df_out_df, cfg, state_path)
 

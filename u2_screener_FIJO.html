@@ -43,6 +43,8 @@
   .neg{ color:#b91c1c; font-weight:600 }   /* rojo  */
   .neu{ color:#64748b }                    /* gris  */
   .chip{ padding:2px 6px; border-radius:6px; background:#0f172a; display:inline-block }
+  .ticker-link{ color:#22c55e; text-decoration:none; font-weight:600 }
+  .ticker-link:hover{ text-decoration:underline; color:#16a34a }
   /* #tbl td{padding: 0px 8px} */
   #toggleFundamentals{
     padding:6px 10px; border:1px solid #2a2f3a; border-radius:8px;
@@ -217,6 +219,7 @@ function biasBadge(b){ if(b==="🟢")return '<span class="badge green">🟢</spa
 function pctSpan(v){ if(v==null||v==="") return ""; const n=Number(v); if(!isFinite(n)) return ""; const cls=n>0?"pos":n<0?"neg":"neu"; const sgn=n>0?"+":(n<0?"":""); return `<span class="${cls}">${sgn}${n.toFixed(1)}%</span>`; }
 function sgnSpan(v,d=2){ if(v==null||v==="") return ""; const n=Number(v); if(!isFinite(n)) return ""; const cls=n>0?"pos":n<0?"neg":"neu"; const sgn=n>0?"+":(n<0?"":""); return `<span class="${cls}">${sgn}${n.toFixed(d)}</span>`; }
 function slopeNormChip(v){ if(v==null||v==="")return ""; const n=Number(v); if(!isFinite(n))return ""; const up=n>0,flat=n===0; const arrow=flat?"→":(up?"↗":"↘"); const cls=up?"pos":(!up&&!flat?"neg":"neu"); return `<span class="${cls}">${arrow} ${n.toFixed(2)}</span>`; }
+function tickerLink(v){ const t=String(v||""); if(!t) return ""; const href=`triple_screen.html?ticker=${encodeURIComponent(t)}`; return `<a class="ticker-link" href="${href}" target="_blank" rel="noopener">${t}</a>`; }
 function humanMoney(x){ const n=Number(x); if(!isFinite(n)) return ''; const ab=Math.abs(n); if(ab>=1e12)return (n/1e12).toFixed(2)+'T'; if(ab>=1e9)return (n/1e9).toFixed(2)+'B'; if(ab>=1e6)return (n/1e6).toFixed(2)+'M'; return n.toLocaleString(); }
 
 
@@ -258,6 +261,7 @@ const COLDEFS = [
   {targets:[29,30,31,32,33,23,24], render:(d,t)=> t==='display' ? (d ? '✅' : '—') : d},
   {targets:[39,46,47,52], render:(d,t)=> t==='display'? humanMoney(d):d},
   {targets:[44,45,48,49,51,54,55,56], render:(d,t)=> t==='display'? pct(d,2):d},
+  {targets:0, render:(d,t)=> t==='display' ? tickerLink(d) : d},
 ];
 
 
