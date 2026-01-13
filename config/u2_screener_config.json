@@ -9,7 +9,8 @@
     "META",
     "SOXL",
     "SOXS",
-    "SOXX"
+    "SOXX",
+    "QQQM"
   ],
   "update_minutes": 30,
   "intervals_cfg": [
@@ -20,9 +21,9 @@
   "intra_tf": "1h",
   "save_local": true,
   "include_fundamentals": true,
-  "template_path": "u2_screener_FIJO.html",
+  "template_path": "templates/u2_screener_FIJO.html",
   "publish_template": true,
-  "triple_template_path": "triple_screen.html",
+  "triple_template_path": "templates/triple_screen.html",
   "details_subdir": "details",
   "detail_points": {
     "1d": 120,

@@ -1,7 +1,7 @@
 import pandas_ta as ta
 import pandas as pd
 import numpy as np
-from svc.load_config import RSI_LENGTH, RSI_OB, RSI_OS, MACD_FAST, MACD_SLOW, MACD_SIGNAL, ADX_LENGTH, EMA_SHORT, EMA_LONG, BB_LENGTH, BB_STD
+from svc.load_config import RSI_LENGTH, RSI_OB, RSI_OS, MACD_FAST, MACD_SLOW, MACD_SIGNAL, ADX_LENGTH, EMA_MID, EMA_SHORT, EMA_LONG, BB_LENGTH, BB_STD
 from tqdm import tqdm
 from typing import Dict, List, cast
 
@@ -25,6 +25,7 @@ def analyse_data(data_by_ticker) -> DictOfDict:
             data_by_ticker[ticker][timeframe].ta.rsi(length=RSI_LENGTH,append=True)
             data_by_ticker[ticker][timeframe].ta.macd(fast=MACD_FAST,slow=MACD_SLOW,signal=MACD_SIGNAL,append=True)
             data_by_ticker[ticker][timeframe].ta.adx(length=ADX_LENGTH,append=True)
+            data_by_ticker[ticker][timeframe].ta.ema(length=EMA_MID,append=True)
             data_by_ticker[ticker][timeframe].ta.ema(length=EMA_SHORT,append=True)
             data_by_ticker[ticker][timeframe].ta.ema(length=EMA_LONG,append=True)
             data_by_ticker[ticker][timeframe].ta.bbands(length=BB_LENGTH,std=BB_STD,append=True)
@@ -40,6 +41,7 @@ def analyse_data(data_by_ticker) -> DictOfDict:
                     f"ADXR_{ADX_LENGTH}_2":"adxr",
                     f"DMP_{ADX_LENGTH}":"di_plus",
                     f"DMN_{ADX_LENGTH}":"di_minus",
+                    f"EMA_{EMA_MID}":"ema_mid",
                     f"EMA_{EMA_SHORT}":"ema_short",
                     f"EMA_{EMA_LONG}":"ema_long",
                     f"BBL_{bblenst}":"bb_lower",
@@ -72,7 +74,7 @@ def analyse_data(data_by_ticker) -> DictOfDict:
             all_ind_cols = [
                 "rsi", "macd", "macd_hist", "macd_signal",
                 "adx", "adxr", "di_plus", "di_minus",
-                "ema_short", "ema_long",
+                "ema_mid", "ema_short", "ema_long",
                 "bb_lower", "bb_middle", "bb_upper", "bb_bandwidth", "bb_percent",
                 "donchian_high", "donchian_low", "donchian_mid",
                 "vol_sma20", "vol_ema20", "obv", "cmf", "mfi"]

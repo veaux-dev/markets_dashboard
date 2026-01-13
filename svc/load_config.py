@@ -25,6 +25,7 @@ MACD_SLOW=config["data"]["indicators"]["macd"]["slow"]
 MACD_SIGNAL=config["data"]["indicators"]["macd"]["signal"]
 
 ADX_LENGTH = config["data"]["indicators"]["adx"]["length"]
+EMA_MID = config["data"]["indicators"]["ema"]["mid"]
 EMA_SHORT = config["data"]["indicators"]["ema"]["short"]
 EMA_LONG = config["data"]["indicators"]["ema"]["long"]
 BB_LENGTH = config["data"]["indicators"]["bollinger"]["length"]

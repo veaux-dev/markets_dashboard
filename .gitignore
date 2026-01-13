@@ -1,10 +1,15 @@
 .venv/
 .vscode/
-state/app.json
+state/*.json
 __pycache__/
-.DS_Store, Thumbs.db
+**/__pycache__/
+.DS_Store
+Thumbs.db
 config/secrets.env
 data/
 *.log
 .env
 strategies/
+logs/
+out/
+out/legacy/

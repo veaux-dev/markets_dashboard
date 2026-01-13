@@ -323,9 +323,16 @@ fmt: FormattersType = {
     'averageAnalystRating': lambda x: f"{x}",
 }
 
-test.save_json_data(df_out_df, "u2_screener.json")
-# HTML embebido (sin fetch externo) reutilizando la UI de u2_screener_FIJO.html
 from pathlib import Path
+
+legacy_out = Path("out/legacy")
+legacy_out.mkdir(parents=True, exist_ok=True)
+
+json_path = legacy_out / "u2_screener.json"
+html_out = legacy_out / "u2_screener_FIJO_embedded.html"
+
+test.save_json_data(df_out_df, str(json_path))
+# HTML embebido (sin fetch externo) reutilizando la UI de u2_screener_FIJO.html
 import json
 
 def build_embedded_html(json_path, template_path, out_path):
@@ -339,9 +346,9 @@ def build_embedded_html(json_path, template_path, out_path):
     Path(out_path).write_text(html_text, encoding="utf-8")
 
 build_embedded_html(
-    json_path="u2_screener.json",
-    template_path="u2_screener_FIJO.html",
-    out_path="u2_screener_FIJO_embedded.html",
+    json_path=str(json_path),
+    template_path="templates/u2_screener_FIJO.html",
+    out_path=str(html_out),
 )
 
 df_out_df = df_out_df.loc[df_out_df['PhaseW'].eq('U2')].reset_index(drop=True)

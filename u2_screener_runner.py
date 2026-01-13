@@ -2,12 +2,13 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 
 from svc import analyzer, collector, notifier, test
+from svc.load_config import EMA_MID, EMA_SHORT, EMA_LONG
 
 
 DEFAULT_CONFIG_PATH = "config/u2_screener_config.json"
@@ -28,7 +29,13 @@ def build_embedded_html(json_path: str, template_path: str, out_path: str) -> No
         html_text = html_text.replace("</body>", inject + "</body>", 1)
     else:
         html_text = html_text + inject
-    Path(out_path).write_text(html_text, encoding="utf-8")
+    _atomic_write_text(Path(out_path), html_text)
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    os.replace(tmp_path, path)
 
 
 def _safe_float(v):
@@ -55,16 +62,20 @@ def _series_line(times, series):
     return out
 
 
-def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict) -> None:
+def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict, meta_by_ticker: dict | None = None) -> None:
     details_dir.mkdir(parents=True, exist_ok=True)
     for ticker in tickers:
         tfs = working_db.get(ticker, {})
         if not tfs:
             continue
 
+        meta = meta_by_ticker.get(ticker, {}) if meta_by_ticker else {}
         payload = {
             "ticker": ticker,
-            "updated_at": datetime.utcnow().isoformat() + "Z",
+            "name": meta.get("name", ""),
+            "next_earnings": meta.get("next_earnings", ""),
+            "earnings_dates": meta.get("earnings_dates", []),
+            "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "timeframes": {},
         }
 
@@ -82,8 +93,14 @@ def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict) ->
 
             closes = _clean_list(tail.get("close", pd.Series(dtype=float)).tolist())
             rsi = tail.get("rsi", pd.Series(dtype=float)).iloc[-1] if "rsi" in tail else None
+            adx = tail.get("adx", pd.Series(dtype=float)).iloc[-1] if "adx" in tail else None
             macdh = tail.get("macd_hist", pd.Series(dtype=float)).iloc[-1] if "macd_hist" in tail else None
             bias = tail.get("bias", pd.Series(dtype=object)).iloc[-1] if "bias" in tail else None
+            phase = tail.get("fase", pd.Series(dtype=object)).iloc[-1] if "fase" in tail else None
+            phase_prev = tail.get("fase_previa", pd.Series(dtype=object)).iloc[-1] if "fase_previa" in tail else None
+            u2_entry = tail.get("U2_entry", pd.Series(dtype=object)).iloc[-1] if "U2_entry" in tail else None
+            force = tail.get("fuerza_%", pd.Series(dtype=float)).iloc[-1] if "fuerza_%" in tail else None
+            vol_last = tail.get("volume", pd.Series(dtype=float)).iloc[-1] if "volume" in tail else None
 
             candles = []
             if all(c in tail.columns for c in ("open", "high", "low", "close")):
@@ -102,6 +119,7 @@ def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict) ->
                         continue
                     candles.append({"time": t, "open": fo, "high": fh, "low": fl, "close": fc})
 
+            ema_mid = _series_line(ts_s, tail.get("ema_mid", pd.Series(dtype=float)).tolist())
             ema_short = _series_line(ts_s, tail.get("ema_short", pd.Series(dtype=float)).tolist())
             ema_long = _series_line(ts_s, tail.get("ema_long", pd.Series(dtype=float)).tolist())
             sup = _series_line(ts_s, tail.get("donchian_low", pd.Series(dtype=float)).tolist())
@@ -115,12 +133,22 @@ def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict) ->
                 "as_of": ts_str[-1] if ts_str else None,
                 "close": closes[-1] if closes else None,
                 "rsi": _safe_float(rsi),
+                "adx": _safe_float(adx),
                 "macd_hist": _safe_float(macdh),
+                "volume": _safe_float(vol_last),
                 "bias": bias,
+                "phase": phase,
+                "phase_prev": phase_prev,
+                "u2_entry": bool(u2_entry) if u2_entry is not None and not pd.isna(u2_entry) else None,
+                "force": _safe_float(force),
+                "ema_mid_len": EMA_MID,
+                "ema_short_len": EMA_SHORT,
+                "ema_long_len": EMA_LONG,
                 "series": {
                     "ts": ts_str,
                     "close": closes,
                     "candles": candles,
+                    "ema_mid": ema_mid,
                     "ema_short": ema_short,
                     "ema_long": ema_long,
                     "support": sup,
@@ -136,7 +164,7 @@ def build_details(working_db, tickers, details_dir: Path, points_by_tf: dict) ->
             continue
 
         out_path = details_dir / f"{ticker}.json"
-        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_write_text(out_path, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def load_state(state_path: str) -> dict:
@@ -149,7 +177,7 @@ def load_state(state_path: str) -> dict:
 def save_state(state_path: str, state: dict) -> None:
     state_file = Path(state_path)
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    _atomic_write_text(state_file, json.dumps(state, indent=2))
 
 
 def notify_u2_entries(df: pd.DataFrame, cfg: dict, state_path: str) -> None:
@@ -196,7 +224,7 @@ def run_once(cfg: dict) -> None:
     output_dir = Path(cfg.get("output_dir", "out"))
     data_dir = Path(cfg.get("data_dir", "data"))
     state_path = cfg.get("state_path", "state/u2_alert_state.json")
-    template_path = cfg.get("template_path", "u2_screener_FIJO.html")
+    template_path = cfg.get("template_path", "templates/u2_screener_FIJO.html")
     include_fundamentals = cfg.get("include_fundamentals", True)
     intra_tf = cfg.get("intra_tf", "1h")
     details_subdir = cfg.get("details_subdir", "details")
@@ -273,6 +301,12 @@ def run_once(cfg: dict) -> None:
                 "macd_slope3_norm": float(_last.get("macd_slope3_norm", float("nan"))),
             }
 
+            def _ok(x):
+                try:
+                    return pd.notna(float(x))
+                except Exception:
+                    return False
+
             _close = float(lastrecord["close"].iloc[-1])
             _ma50 = float(pw["m50"])
             _ma200 = float(pw["m200"])
@@ -280,12 +314,9 @@ def run_once(cfg: dict) -> None:
             _res60 = float(pw["res_60"])
             _macdh_last = float(lastrecord["macd_hist"].iloc[-1])
             _slope_norm = float(pw["macd_slope3_norm"])
-
-            def _ok(x):
-                try:
-                    return pd.notna(float(x))
-                except Exception:
-                    return False
+            _vol_last = float(lastrecord["volume"].iloc[-1]) if "volume" in lastrecord else float("nan")
+            _vol_avg20 = float(df1d["volume"].tail(20).mean()) if "volume" in df1d else float("nan")
+            _vol_k = (_vol_last / _vol_avg20) if _ok(_vol_last) and _ok(_vol_avg20) else float("nan")
 
             above_ma50 = _ok(_ma50) and _close >= _ma50
             above_ma200 = _ok(_ma200) and _close >= _ma200
@@ -295,6 +326,7 @@ def run_once(cfg: dict) -> None:
                 _ok(_slope_norm) and _slope_norm > 0
             )
             dist_ma50_pct = ((_close / _ma50 - 1.0) * 100.0) if _ok(_ma50) else float("nan")
+            dist_res_pct = ((_res20 / _close - 1.0) * 100.0) if _ok(_res20) and _ok(_close) else float("nan")
 
             row = {
                 "Ticker": ticker,
@@ -313,6 +345,8 @@ def run_once(cfg: dict) -> None:
                 "Res60": pw["res_60"],
                 "PhaseW": pw["fase"],
                 "Force": pw["fuerza_%"],
+                "VolK": _vol_k,
+                "DistRes%": dist_res_pct,
                 "DiasFase": pw["dias_en_fase"],
                 "PhasePrev": pw["fase_previa"],
                 "PhaseChanged": pw["fase_cambio"],
@@ -354,7 +388,8 @@ def run_once(cfg: dict) -> None:
     build_embedded_html(str(output_json), template_path, str(output_html))
 
     index_html = output_dir / "index.html"
-    index_html.write_text(
+    _atomic_write_text(
+        index_html,
         "\n".join(
             [
                 "<!doctype html>",
@@ -370,20 +405,31 @@ def run_once(cfg: dict) -> None:
                 "</html>",
             ]
         ),
-        encoding="utf-8",
     )
 
     if cfg.get("publish_template", True):
         template_out = output_dir / "u2_screener_FIJO.html"
-        template_out.write_text(Path(template_path).read_text(encoding="utf-8"), encoding="utf-8")
+        _atomic_write_text(template_out, Path(template_path).read_text(encoding="utf-8"))
 
-    triple_template = Path(cfg.get("triple_template_path", "triple_screen.html"))
+    triple_template = Path(cfg.get("triple_template_path", "templates/triple_screen.html"))
     if triple_template.exists():
         triple_out = output_dir / "triple_screen.html"
-        triple_out.write_text(triple_template.read_text(encoding="utf-8"), encoding="utf-8")
+        _atomic_write_text(triple_out, triple_template.read_text(encoding="utf-8"))
 
     points_by_tf = cfg.get("detail_points", {"1d": 120, "2h": 120, "15m": 120})
-    build_details(working_db, tickers, output_dir / details_subdir, points_by_tf)
+    meta_by_ticker = {}
+    if not df_out_df.empty:
+        for _, row in df_out_df.iterrows():
+            ticker = row.get("Ticker")
+            if not ticker:
+                continue
+            meta_by_ticker[ticker] = {
+                "name": row.get("Name", ""),
+                "next_earnings": row.get("NextEarnings", ""),
+                "earnings_dates": row.get("EarningsDates", []) or [],
+            }
+
+    build_details(working_db, tickers, output_dir / details_subdir, points_by_tf, meta_by_ticker)
 
     notify_u2_entries(df_out_df, cfg, state_path)
 

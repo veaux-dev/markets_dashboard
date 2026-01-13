@@ -36,6 +36,7 @@ data:
     adx:
       length: 14
     ema:
+      mid: 21
       short: 50
       long: 200
     bollinger:

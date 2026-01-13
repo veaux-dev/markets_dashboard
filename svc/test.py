@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 
@@ -231,8 +232,10 @@ import json
 def save_json_data(df : pd.DataFrame, path="u2_screener.json"):
     df = df.replace([np.nan, np.inf, -np.inf], None)
     records = df.to_dict(orient="records")
-    with open(path, "w", encoding="utf-8") as f:
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(records, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, path)
 
 
 

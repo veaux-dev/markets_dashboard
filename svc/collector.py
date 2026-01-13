@@ -184,7 +184,8 @@ def GetTickerInfo(ticker:str) -> Dict[str, Any]:
     
     '''
     try:
-        info = yf.Ticker(ticker).get_info()
+        yt = yf.Ticker(ticker)
+        info = yt.get_info()
     except Exception as e:
         # En caso de error de red o ticker inválido, devuelve campos vacíos
         return {
@@ -197,6 +198,7 @@ def GetTickerInfo(ticker:str) -> Dict[str, Any]:
             "ExpenseRatio%": float("nan"), "AUM": float("nan"), "Category": "",
             "FundYield%": float("nan"), "Ret3Y%": float("nan"), "Ret5Y%": float("nan"),
             "recommendationKey": "", "averageAnalystRating": "",
+            "NextEarnings": "",
             "_error": str(e),
         }
 
@@ -245,6 +247,54 @@ def GetTickerInfo(ticker:str) -> Dict[str, Any]:
     reco_key          = (info.get("recommendationKey") or "")
     avg_analyst       = (info.get("averageAnalystRating") or "")
 
+    next_earnings = ""
+    earnings_dates = []
+    try:
+        cal = yt.calendar
+        val = None
+        if isinstance(cal, pd.DataFrame):
+            if "Earnings Date" in cal.index:
+                val = cal.loc["Earnings Date"]
+                if isinstance(val, pd.Series):
+                    val = val.iloc[0]
+                elif isinstance(val, pd.DataFrame):
+                    val = val.iloc[0, 0]
+            elif "Earnings Date" in cal.columns:
+                val = cal["Earnings Date"].iloc[0]
+        elif isinstance(cal, pd.Series):
+            val = cal.get("Earnings Date")
+        if isinstance(val, (list, tuple)) and val:
+            val = val[0]
+        dt = pd.to_datetime(val, errors="coerce", utc=True)
+        if pd.notna(dt):
+            next_earnings = dt.isoformat().replace("+00:00", "Z")
+    except Exception:
+        next_earnings = ""
+
+    try:
+        edf = yt.get_earnings_dates(limit=12)
+        if isinstance(edf, pd.DataFrame) and not edf.empty:
+            for d in edf.index:
+                dt = pd.to_datetime(d, errors="coerce", utc=True)
+                if pd.notna(dt):
+                    earnings_dates.append(dt.isoformat().replace("+00:00", "Z"))
+    except Exception:
+        earnings_dates = []
+
+    if not next_earnings and earnings_dates:
+        try:
+            now = pd.Timestamp.utcnow().tz_localize("UTC")
+            parsed = []
+            for d in earnings_dates:
+                dt = pd.to_datetime(d, errors="coerce", utc=True)
+                if pd.notna(dt):
+                    parsed.append(dt)
+            future = [d for d in parsed if d >= now]
+            if future:
+                next_earnings = min(future).isoformat().replace("+00:00", "Z")
+        except Exception:
+            pass
+
     return {
         "Name": name_long, "Asset": asset, "Sector": sector, "Industry": industry,
         "MarketCap": marketcap, "TrailingPE": trailingPE, "ForwardPE": forwardPE,
@@ -255,6 +305,8 @@ def GetTickerInfo(ticker:str) -> Dict[str, Any]:
         "ExpenseRatio%": expense_pct, "AUM": aum, "Category": category,
         "FundYield%": fund_yield_pct, "Ret3Y%": ret3y_pct, "Ret5Y%": ret5y_pct,
         "recommendationKey": reco_key, "averageAnalystRating": avg_analyst,
+        "NextEarnings": next_earnings,
+        "EarningsDates": earnings_dates,
     }
 
 
