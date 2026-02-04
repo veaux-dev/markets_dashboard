@@ -1,0 +1,29 @@
+# Línea 1 - Imagen base
+FROM python:3.12.3-slim
+
+# Línea 2 - Directorio de trabajo
+WORKDIR /app
+
+# Línea 3 - Copiar requirements V2 primero
+COPY requirements_v2.txt .
+COPY build_stamp.txt .
+
+# Línea 4 - Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirements_v2.txt
+
+# Línea 5 - Copiar todo el código fuente
+COPY . .
+
+# Línea 6a - Crear directorios necesarios
+RUN mkdir -p /app/data
+RUN mkdir -p /app/config
+
+# Línea 7 - Configurar timezone
+ENV TZ=America/Mexico_City
+
+# Línea 8 - Crear mount points
+VOLUME ["/app/data"]
+VOLUME ["/app/config"]
+
+# Línea 9 - Comando por defecto para V2
+CMD ["python", "main_v2.py"]

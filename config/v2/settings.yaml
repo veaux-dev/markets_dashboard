@@ -1,0 +1,105 @@
+# MarketDashboard Config V2
+
+system:
+  db_filename: "markets.duckdb" # Producción
+  log_level: "INFO"
+  timezone: "America/Mexico_City"
+
+# ------------------------------------------------------------------------------
+# 🎯 UNIVERSO DE ACTIVOS
+# ------------------------------------------------------------------------------
+portfolios:
+  # Tus posiciones reales (Prioridad máxima para datos intradía)
+  holdings:
+    - { ticker: "INTC", qty: 50, avg_price: 30.50, notes: "Long term hold" }
+    - { ticker: "NVDA", qty: 10, avg_price: 450.00 }
+    - "MEGACPO.MX"
+    - "ALSEA.MX"
+    - "FNOVA17.MX"
+
+universe:
+  # Tickers que NO vienen en los índices automáticos (ETFs, Índices, Favoritos Manuales)
+  # Estos se sumarán al barrido diario.
+  watchlist:
+    # Indices & ETFs USA
+    - "^GSPC" # S&P 500 Index
+    - "^NDX"  # Nasdaq 100 Index
+    - "SPY"
+    - "QQQ"
+    - "TQQQ"
+    - "SOXX"  # iShares Semiconductor (SOX suele ser el índice, SOXX el ETF líquido)
+    - "SOXL"  # 3x Bull Semi
+    - "SOXS"  # 3x Bear Semi
+    
+    # Indices México
+    - "^MXX"  # IPC
+    - "GMEXICOB.MX"
+    - "AMXB.MX"
+   
+    
+    # Acciones específicas fuera de índices principales o interés particular
+    - "TSLA"  # Ya está en NDX/SP500 pero no estorba tenerla explicita si quieres
+    - "GME"
+    - "AMC"
+
+# ------------------------------------------------------------------------------
+# ⚙️ DATOS Y FRECUENCIA
+# ------------------------------------------------------------------------------
+data:
+  timeframes:
+    broad: ["1d"]                 # Barrido general
+    detailed: ["1d", "1h", "15m"] # Holdings y Watchlist VIP
+  
+  market_hours:
+    open: "07:30"
+    close: "15:30"
+
+# ------------------------------------------------------------------------------
+# 📐 PARAMETROS DE INDICADORES
+# ------------------------------------------------------------------------------
+indicators:
+  rsi: { length: 14, ob: 70, os: 30 }
+  macd: { fast: 12, slow: 26, signal: 9 }
+  adx: { length: 14, threshold: 25 }
+  weinstein: 
+    ma_long: 200 
+    ma_short: 50 
+    lookback_slope: 40
+  bollinger: { length: 20, std: 2.0 }
+
+# ------------------------------------------------------------------------------
+# 📢 NOTIFICACIONES
+# ------------------------------------------------------------------------------
+alerts:
+  enable_discord: true
+  channels:
+    default: "DISCORD_WEBHOOK_URL"
+    urgent: "DISCORD_URGENT_URL"
+
+# ------------------------------------------------------------------------------
+# 📓 JOURNALING
+# ------------------------------------------------------------------------------
+journal:
+  enabled: true
+  storage_table: "trade_log"
+
+# ------------------------------------------------------------------------------
+# 🕒 SCHEDULER (Daemon Mode)
+# ------------------------------------------------------------------------------
+scheduler:
+  # Loop principal: frecuencia de chequeo (heartbeat) en segundos
+  loop_interval_sec: 60
+  
+  # Jobs definidos
+  jobs:
+    broad_scan:
+      enabled: true
+      # Formato: "HH:MM" (hora local) para ejecución diaria
+      run_at: ["21:00"] 
+      
+    detailed_scan:
+      enabled: true
+      # Formato: intervalo en minutos (intradía)
+      interval_min: 60
+      # Solo ejecutar dentro de market_hours (definido arriba)
+      respect_market_hours: true

@@ -336,6 +336,7 @@
       let refreshDeadline = null;
       let refreshTick = null;
       let refreshTimer = null;
+      let activeCharts = [];
 
       function getTickerFromUrl(){
         const p = new URLSearchParams(location.search);
@@ -457,6 +458,18 @@
         });
       }
 
+      function disposeCharts(){
+        if (!activeCharts.length) return;
+        activeCharts.forEach((chart) => {
+          try {
+            chart.remove();
+          } catch (err) {
+            // ignore disposal errors
+          }
+        });
+        activeCharts = [];
+      }
+
       function renderFrame(tf, data){
         const card = document.createElement("div");
         card.className = "card";
@@ -533,6 +546,7 @@
           const priceChart = initChart(priceEl, Math.max(260, priceEl.clientHeight), intraday);
           const rsiChart = initChart(rsiEl, Math.max(140, rsiEl.clientHeight), intraday);
           const macdChart = initChart(macdEl, Math.max(140, macdEl.clientHeight), intraday);
+          activeCharts.push(priceChart, rsiChart, macdChart);
           const supportsPanes = typeof priceChart.addSeries === "function";
 
           let paneId = null;
@@ -644,6 +658,7 @@
       }
 
       function renderEmpty(msg){
+        disposeCharts();
         grid.innerHTML = "";
         const box = document.createElement("div");
         box.className = "empty";
@@ -679,6 +694,7 @@
         }
         try{
           const payload = await fetchDetails(ticker);
+          disposeCharts();
           grid.innerHTML = "";
           const updatedPretty = payload.updated_at ? formatAsOf(payload.updated_at) : "—";
           const nameText = payload.name ? ` · ${payload.name}` : "";
@@ -725,6 +741,10 @@
           }
         });
       }
+
+      window.addEventListener("beforeunload", () => {
+        disposeCharts();
+      });
 
       function startRefreshCycle(){
         resetRefreshCountdown(null);

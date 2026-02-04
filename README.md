@@ -1,8 +1,28 @@
-# Markets Dashboard – Collector, Alerts, Screener + Web
+# MarketDashboard
 
-Sistema modular en Python para **recolección de datos de mercado, almacenamiento local en Parquet, análisis técnico, alertas** y **screener web**.
+Dashboard de análisis técnico y monitoreo de activos (BMV/US).
+
+## 🚀 Versión 2 (Nueva Arquitectura)
+Basada en **DuckDB**, **Pydantic** y **Jobs aislados**.
+- **Daemon Orchestrator:** `main_v2.py`
+- **DB:** `data/markets.duckdb`
+- **Config:** `config/v2/settings.yaml`
+
+### Despliegue V2
+```bash
+docker compose -f docker-compose.v2.yml up -d --build
+```
+
+### Herramientas
+- **Portfolio CLI:** `python tools/portfolio_cli.py list`
 
 ---
+
+## 🏛 Versión 1 (Legacy)
+Infraestructura original basada en archivos JSON/Pickle.
+- **Main:** `main_mkt_db.py`
+- **Screener:** `u2_screener_runner.py`
+
 
 ## 🧱 Componentes
 
@@ -173,6 +193,28 @@ Si no existen, créalos antes de `docker compose up`.
 - Empezar con 1D; 2H/15m solo después de validar 1D.
 - Baselines clásicos (LogReg / RandomForest / GradientBoosting) con `TimeSeriesSplit`.
 - Métricas: hit rate, retorno promedio post‑señal, drawdown, precision/recall.
+
+---
+
+## 🧪 Backtests (strategies/)
+
+Existe un runner simple para comparar estrategias contra **buy‑and‑hold** y **CETES**:
+
+```bash
+python strategies/run_backtests.py \
+  --db /data/markets.duckdb \
+  --ticker ^MXX \
+  --start 2015-01-01 \
+  --strategies macdh_cross,decisions_table
+```
+
+Salida: tabla con CAGR, retorno total, volatilidad, Sharpe y max drawdown.
+
+Notas:
+- `decisions_table` usa la tabla `decisions` si existe en DuckDB.
+- `macdh_cross` es el cruce de histograma MACD en 1D.
+- Otros disponibles: `macdh_slope`, `macdh_slope_strict`, `macdh_hybrid`, `macdh_hybrid_killswitch`, `bargain_hunter`, `portfolio_decisions`.
+- `--out` permite guardar CSV del resumen.
 
 ## 🗂️ Organización del repo
 

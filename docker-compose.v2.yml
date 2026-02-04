@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  market-dashboard-v2:
+    build:
+      context: .
+      dockerfile: Dockerfile.v2
+    container_name: market_dashboard_v2
+    volumes:
+      - ${BASE_DIR}/Dashboard/data_v2:/app/data
+      - ${BASE_DIR}/config:/app/config
+    environment:
+      - TZ=America/Mexico_City
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - NUMBA_DISABLE_JIT=1
+    restart: unless-stopped
