@@ -14,3 +14,18 @@ services:
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - NUMBA_DISABLE_JIT=1
     restart: unless-stopped
+
+  market-api-v2:
+    build:
+      context: .
+      dockerfile: Dockerfile.v2
+    container_name: market_api_v2
+    volumes:
+      - ${BASE_DIR}/Dashboard/data_v2:/app/data
+      - ${BASE_DIR}/config:/app/config
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=America/Mexico_City
+    command: uvicorn svc_v2.api:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
