@@ -60,7 +60,11 @@ def cmd_add(args):
     
     # Calcular total para confirmar
     total = args.qty * args.price
-    print(f"📝 Registrando: {args.side.upper()} {args.qty} {args.ticker} @ ${args.price:.2f} (Total: ${total:.2f})")
+    date_str = args.date if args.date else "HOY (Ahora)"
+    currency = args.currency.upper()
+    
+    print(f"📝 Registrando: {args.side.upper()} {args.qty} {args.ticker} @ ${args.price:.2f} {currency} (Total: ${total:.2f})")
+    print(f"   📅 Fecha: {date_str}")
     
     confirm = input("¿Confirmar? [y/N]: ")
     if confirm.lower() == 'y':
@@ -70,11 +74,17 @@ def cmd_add(args):
             qty=args.qty,
             price=args.price,
             fees=args.fees,
-            notes=args.notes
+            notes=args.notes,
+            timestamp=args.date, # Puede ser None
+            currency=currency
         )
         print("✅ Guardado.")
     else:
         print("❌ Cancelado.")
+# ... inside main() ...
+    p_add.add_argument("--notes", type=str, default="", help="Notas opcionales")
+    p_add.add_argument("--date", type=str, default=None, help="Fecha opcional (YYYY-MM-DD o YYYY-MM-DD HH:MM:SS)")
+    p_add.add_argument("--currency", type=str, default="MXN", help="Moneda (MXN, USD)")
 
 def cmd_list(args):
     """Muestra el estado actual del portafolio (Vista Consolidada)."""
@@ -88,13 +98,16 @@ def cmd_list(args):
             return
 
         # Formateo bonito
-        df['avg_buy_price'] = df['avg_buy_price'].map('${:,.2f}'.format)
+        # Intentar formatear si es numérico
+        if 'avg_buy_price' in df.columns:
+             df['avg_buy_price'] = df['avg_buy_price'].apply(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$0.00")
         
         print("\n📊 PORTAFOLIO ACTUAL (Consolidado):")
-        print(df.to_markdown(index=False))
-        
-        # Calcular valor total estimado (si tuviéramos precio actual, por ahora solo Cost Basis)
-        # Esto requeriría cruzar con tabla ohlcv (próximo paso del dashboard)
+        # Usar tabulate si está instalado (CLI local o docker con tabulate)
+        try:
+            print(df.to_markdown(index=False))
+        except ImportError:
+            print(df.to_string(index=False))
         
     except Exception as e:
         print(f"❌ Error consultando vista: {e}")
@@ -102,20 +115,25 @@ def cmd_list(args):
 def cmd_history(args):
     """Muestra el historial de transacciones (Ledger)."""
     db = get_db()
-    query = "SELECT * FROM portfolio_transactions"
+    query = "SELECT timestamp, side, ticker, qty, price, notes FROM portfolio_transactions"
     
     if args.ticker:
         query += f" WHERE ticker = '{args.ticker.upper()}'"
     
     query += " ORDER BY timestamp DESC"
     
-    df = db.conn.execute(query).df()
-    if df.empty:
-        print("📭 Sin transacciones.")
-    else:
-        print(f"\n📜 HISTORIAL ({len(df)} registros):")
-        # Ocultar ID para display limpio
-        print(df.drop(columns=['id']).to_markdown(index=False))
+    try:
+        df = db.conn.execute(query).df()
+        if df.empty:
+            print("📭 Sin transacciones.")
+        else:
+            print(f"\n📜 HISTORIAL ({len(df)} registros):")
+            try:
+                print(df.to_markdown(index=False))
+            except ImportError:
+                print(df.to_string(index=False))
+    except Exception as e:
+         print(f"❌ Error leyendo historial: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Gestor de Portafolio V2 (CLI)")
@@ -132,6 +150,7 @@ def main():
     p_add.add_argument("price", type=float, help="Precio unitario")
     p_add.add_argument("--fees", type=float, default=0.0, help="Comisiones")
     p_add.add_argument("--notes", type=str, default="", help="Notas opcionales")
+    p_add.add_argument("--date", type=str, default=None, help="Fecha opcional (YYYY-MM-DD o YYYY-MM-DD HH:MM:SS)")
 
     # 3. List Portfolio
     p_list = subparsers.add_parser("list", help="Ver portafolio consolidado")

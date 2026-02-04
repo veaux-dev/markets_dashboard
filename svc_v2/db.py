@@ -152,14 +152,17 @@ class Database:
     # WRITE OPERATIONS (Upserts)
     # --------------------------------------------------------------------------
     
-    def add_transaction(self, ticker: str, side: str, qty: float, price: float, fees: float = 0.0, notes: str = None):
-        """Registra una nueva transacción (BUY/SELL)."""
+    def add_transaction(self, ticker: str, side: str, qty: float, price: float, fees: float = 0.0, notes: str = None, timestamp: str = None, currency: str = 'MXN'):
+        """Registra una nueva transacción (BUY/SELL). Timestamp opcional (YYYY-MM-DD HH:MM:SS)."""
         try:
-            self.conn.execute("""
-                INSERT INTO portfolio_transactions (ticker, side, qty, price, fees, notes, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, now())
-            """, [ticker, side.upper(), qty, price, fees, notes])
-            logging.info(f"💰 Transacción registrada: {side} {qty} {ticker} @ {price}")
+            ts_val = f"'{timestamp}'" if timestamp else "now()"
+            
+            query = f"""
+                INSERT INTO portfolio_transactions (ticker, side, qty, price, fees, notes, timestamp, currency)
+                VALUES (?, ?, ?, ?, ?, ?, {ts_val}, ?)
+            """
+            self.conn.execute(query, [ticker, side.upper(), qty, price, fees, notes, currency.upper()])
+            logging.info(f"💰 Transacción registrada: {side} {qty} {ticker} @ {price} {currency} ({ts_val})")
         except Exception as e:
             logging.error(f"DB Error adding transaction {ticker}: {e}")
 
