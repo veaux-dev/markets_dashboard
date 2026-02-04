@@ -12,3 +12,4 @@ matplotlib
 pydantic
 schedule
 tabulate
+lxml
