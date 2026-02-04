@@ -87,8 +87,8 @@ class Collector:
         try:
             # yf.download devuelve MultiIndex (Price, Ticker) si hay mas de 1 ticker
             # auto_adjust=True para ajustar splits/divs
-            # threads=True usa multithreading interno
-            data = yf.download(tickers, start=start_date, interval=interval, auto_adjust=True, threads=True, progress=False)
+            # threads=False para evitar saturar conexiones y error 429/ConnectionRefused
+            data = yf.download(tickers, start=start_date, interval=interval, auto_adjust=True, threads=False, progress=False)
             
             if data.empty:
                 return
