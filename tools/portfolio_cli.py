@@ -81,10 +81,6 @@ def cmd_add(args):
         print("✅ Guardado.")
     else:
         print("❌ Cancelado.")
-# ... inside main() ...
-    p_add.add_argument("--notes", type=str, default="", help="Notas opcionales")
-    p_add.add_argument("--date", type=str, default=None, help="Fecha opcional (YYYY-MM-DD o YYYY-MM-DD HH:MM:SS)")
-    p_add.add_argument("--currency", type=str, default="MXN", help="Moneda (MXN, USD)")
 
 def cmd_list(args):
     """Muestra el estado actual del portafolio (Vista Consolidada)."""
@@ -151,6 +147,7 @@ def main():
     p_add.add_argument("--fees", type=float, default=0.0, help="Comisiones")
     p_add.add_argument("--notes", type=str, default="", help="Notas opcionales")
     p_add.add_argument("--date", type=str, default=None, help="Fecha opcional (YYYY-MM-DD o YYYY-MM-DD HH:MM:SS)")
+    p_add.add_argument("--currency", type=str, default="MXN", help="Moneda (MXN, USD)")
 
     # 3. List Portfolio
     p_list = subparsers.add_parser("list", help="Ver portafolio consolidado")
