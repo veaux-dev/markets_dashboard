@@ -98,7 +98,16 @@ class Collector:
             # Caso B: Multiples tickers (Columns Level 0: Price, Level 1: Ticker)
             
             if len(tickers) == 1:
-                # Simular estructura MultiIndex para usar la misma logica abajo o procesar directo
+                # Caso especial: Un solo ticker puede venir como MultiIndex o Flat
+                # Si es MultiIndex (Price, Ticker), eliminamos el nivel de Ticker
+                if isinstance(data.columns, pd.MultiIndex):
+                    try:
+                        # Intentar seleccionar por nivel de ticker si existe
+                        data = data.xs(tickers[0], level=1, axis=1)
+                    except:
+                        # Fallback: drop level 1
+                        data = data.droplevel(1, axis=1)
+
                 df_to_process = data.copy()
                 df_to_process['ticker'] = tickers[0]
                 self._process_and_upsert(df_to_process, timeframe)
@@ -116,6 +125,7 @@ class Collector:
             df_stacked = df_stacked.reset_index()
             
             # Renombrar columnas a minúsculas
+            # Stack convierte columnas a Index simple, str(c) es seguro aqui
             df_stacked.columns = [str(c).lower() for c in df_stacked.columns]
             
             # Normalizar nombres de columnas esenciales
@@ -141,7 +151,16 @@ class Collector:
     def _process_and_upsert(self, df: pd.DataFrame, timeframe: str):
         """Helper para DF plano de un solo ticker."""
         df = df.reset_index()
-        df.columns = [c.lower() for c in df.columns]
+        
+        # Sanitizar columnas (pueden ser tuplas si venian de multiindex mal aplanado)
+        new_cols = []
+        for c in df.columns:
+            if isinstance(c, tuple):
+                new_cols.append(str(c[0]).lower())
+            else:
+                new_cols.append(str(c).lower())
+        df.columns = new_cols
+
         if 'datetime' in df.columns: df.rename(columns={'datetime': 'date'}, inplace=True)
         if pd.api.types.is_datetime64tz_dtype(df['date']):
              df['date'] = df['date'].dt.tz_convert("UTC").dt.tz_localize(None)
