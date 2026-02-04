@@ -30,50 +30,57 @@ def main():
     # 3. Construir Universo (SOLO Watchlist + Holdings + Dynamic Candidates)
     print("🌌 Cargando Universo VIP (Watchlist + Holdings + Dynamic)...")
     
-    # A) Estáticos (Config) - Extraer tickers si son objetos HoldingConfig
+    # A) Recuperar Holdings Reales desde DB (Ledger)
+    try:
+        my_holdings_df = db.conn.execute("SELECT ticker FROM view_portfolio_holdings").df()
+        my_holdings = set(my_holdings_df['ticker'].tolist()) if not my_holdings_df.empty else set()
+    except Exception as e:
+        logging.warning(f"No se pudo leer view_portfolio_holdings: {e}")
+        my_holdings = set()
+
+    # B) Estáticos (Config - Backup por si DB falla o para inicializar)
     holding_tickers = [h.ticker if hasattr(h, 'ticker') else h for h in cfg.portfolios.holdings]
-    static_tickers = cfg.universe.watchlist + holding_tickers
+    # Unimos holdings de DB y Config
+    all_holdings = my_holdings.union(set(holding_tickers))
     
-    # B) Dinámicos (DB - Candidatos recientes del Broad Scan)
+    # C) Watchlist + Dynamic
+    static_tickers = cfg.universe.watchlist
     dynamic_tickers = db.get_dynamic_watchlist()
     
     # Unificar y deduplicar
-    vip_tickers = list(set(static_tickers + dynamic_tickers))
+    vip_tickers = list(all_holdings.union(set(static_tickers + dynamic_tickers)))
     
     if not vip_tickers:
         print("   ⚠️ No hay activos VIP para escanear.")
         return
 
-    print(f"   -> Origen: {len(static_tickers)} Config + {len(dynamic_tickers)} Dynamic DB")
+    print(f"   -> Origen: {len(all_holdings)} Holdings + {len(dynamic_tickers)} Dynamic DB + {len(static_tickers)} Watchlist")
     
-    # Recuperar nombres de la DB si existen (para el reporte)
-    q_names = f"SELECT ticker, name FROM ticker_metadata WHERE ticker IN ({','.join([f"'{t}'" for t in vip_tickers])})"
+    # Recuperar nombres
     try:
+        q_names = f"SELECT ticker, name FROM ticker_metadata WHERE ticker IN ({','.join([f"'{t}'" for t in vip_tickers])})"
         name_map = db.conn.execute(q_names).df().set_index('ticker')['name'].to_dict()
-    except Exception as e:
-        logging.debug(f"Could not load names: {e}")
+    except Exception:
         name_map = {}
         
     print(f"   -> Escaneando {len(vip_tickers)} activos VIP.")
 
     # 4. Loop por Timeframe Intradía
-    # Por defecto ['1h', '15m']
     timeframes = cfg.data.timeframes.get('detailed', ['1h', '15m'])
     
     for tf in timeframes:
-        if tf == '1d': continue # Broad scan ya hace esto
+        if tf == '1d': continue 
         
         print(f"\n⏱️  Timeframe: {tf}")
         
-        # A) Sync (Incremental)
-        # Collector ya maneja la lógica de pedir solo lo reciente si existe historia
+        # A) Sync
         col.sync_tickers(vip_tickers, [tf])
         
-        # B) Analyze (Incremental)
+        # B) Analyze
         alz.analyze_tickers(vip_tickers, [tf], force_full=False)
         
         # C) Screen
-        print(f"   🔎 Buscando oportunidades en {tf}...")
+        print(f"   🔎 Resultados:")
         strategies = {
             "BUY_BOUNCE": "Rebote / Sobrevendido",
             "SELL_STRENGTH": "Euforia / Sobrecompra",
@@ -82,23 +89,33 @@ def main():
         
         for strat_key, label in strategies.items():
             candidates = eng.run_screen(strat_key, timeframe=tf)
-            
-            # Filtrar VIP
             candidates = candidates[candidates['ticker'].isin(vip_tickers)]
             
-            if not candidates.empty:
-                candidates['name'] = candidates['ticker'].map(name_map).fillna(candidates['ticker'])
-                candidates['name'] = candidates['name'].astype(str).str.slice(0, 20)
-                
-                print(f"   👉 {label} ({strat_key}): {len(candidates)}")
-                
-                # Columnas dinámicas
-                cols = ['ticker', 'name', 'close']
-                if 'rsi' in candidates.columns: cols.append('rsi')
-                if 'adx' in candidates.columns: cols.append('adx')
-                if 'gap_pct' in candidates.columns: cols.append('gap_pct')
-                
-                print(candidates[cols].to_string(index=False))
+            if candidates.empty:
+                continue
+
+            # Enriquecer
+            candidates['name'] = candidates['ticker'].map(name_map).fillna(candidates['ticker'])
+            candidates['name'] = candidates['name'].astype(str).str.slice(0, 20)
+            
+            # Definir columnas a mostrar
+            cols = ['ticker', 'name', 'close']
+            extra = ['chg_pct', 'gap_pct', 'rsi', 'adx'] # Prioridad
+            for c in extra:
+                if c in candidates.columns: cols.append(c)
+
+            # Separar Holdings vs Resto
+            is_holding_mask = candidates['ticker'].isin(all_holdings)
+            df_holdings = candidates[is_holding_mask]
+            df_market = candidates[~is_holding_mask]
+
+            if not df_holdings.empty:
+                print(f"\n   🚨 {label} [MY HOLDINGS] ({len(df_holdings)})")
+                print(df_holdings[cols].to_string(index=False))
+            
+            if not df_market.empty:
+                print(f"\n   🔭 {label} [MARKET] ({len(df_market)})")
+                print(df_market[cols].to_string(index=False))
 
     print("\n✅ Detailed Scan Finalizado.")
     db.close()
