@@ -4,6 +4,7 @@ import logging
 import subprocess
 import sys
 import signal
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -11,6 +12,9 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from svc_v2.config_loader import load_settings
+
+# Asegurar que directorio de logs exista
+os.makedirs("logs", exist_ok=True)
 
 # Configuración de Logging del Daemon
 logging.basicConfig(

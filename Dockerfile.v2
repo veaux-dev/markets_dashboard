@@ -17,6 +17,7 @@ COPY . .
 # Línea 6a - Crear directorios necesarios
 RUN mkdir -p /app/data
 RUN mkdir -p /app/config
+RUN mkdir -p /app/logs
 
 # Línea 7 - Configurar timezone
 ENV TZ=America/Mexico_City
