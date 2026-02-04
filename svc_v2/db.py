@@ -76,6 +76,7 @@ class Database:
                 -- Custom Metrics (Manifiesto)
                 vol_k DOUBLE,
                 gap_pct DOUBLE,
+                chg_pct DOUBLE,
                 
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (ticker, timeframe, timestamp),

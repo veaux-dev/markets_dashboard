@@ -112,8 +112,11 @@ class Analyzer:
         # Shift(1) mueve el close una fila abajo (ayer alineado con hoy)
         prev_close = df['close'].shift(1)
         df['gap_pct'] = (df['open'] - prev_close) / prev_close * 100.0
+        
+        # 2. CHG% = (Close_Hoy - Close_Ayer) / Close_Ayer (Rendimiento Total Intradía)
+        df['chg_pct'] = (df['close'] - prev_close) / prev_close * 100.0
 
-        # 2. Vol K (Relativo) = Vol / AvgVol20
+        # 3. Vol K (Relativo) = Vol / AvgVol20
         vol_avg = ta.sma(df['volume'], length=20)
         df['vol_k'] = df['volume'] / (vol_avg + 1e-9) # Evitar div/0
 
@@ -154,7 +157,7 @@ class Analyzer:
             'ema_20', 'ema_50', 'ema_200', 
             'donchian_high', 'donchian_low',
             'bb_upper', 'bb_mid', 'bb_lower',
-            'vol_k', 'gap_pct'
+            'vol_k', 'gap_pct', 'chg_pct'
         ]
         
         # Filtrar solo las que tenemos

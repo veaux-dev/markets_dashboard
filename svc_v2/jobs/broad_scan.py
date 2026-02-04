@@ -104,7 +104,7 @@ def main():
             base_cols = ['ticker', 'name', 'close']
             extra_cols = []
             if strat_key == "BUY_BOUNCE":
-                extra_cols = ['gap_pct', 'rsi', 'vol_k']
+                extra_cols = ['gap_pct', 'chg_pct', 'rsi', 'vol_k']
             elif strat_key == "BUY_TREND":
                 extra_cols = ['adx', 'ema_50', 'macd_hist']
             elif strat_key == "SELL_STRENGTH":

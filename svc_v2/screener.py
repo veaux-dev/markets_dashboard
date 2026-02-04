@@ -33,11 +33,11 @@ class ScreenerEngine:
             WHERE i.timeframe = '{tf}'
         )
         SELECT 
-            ticker, timestamp, close, gap_pct, rsi, vol_k, ema_200,
+            ticker, timestamp, close, gap_pct, chg_pct, rsi, vol_k, ema_200,
             (close / ema_50 - 1) * 100 as dist_ema50_pct
         FROM latest
         WHERE rn = 1
-          AND gap_pct <= -6
+          AND (gap_pct <= -6 OR chg_pct <= -6)
           AND rsi BETWEEN 5 AND 60
           AND vol_k >= 0.6
         ORDER BY gap_pct ASC
