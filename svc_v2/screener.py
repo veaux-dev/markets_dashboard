@@ -38,7 +38,7 @@ class ScreenerEngine:
         FROM latest
         WHERE rn = 1
           AND gap_pct <= -6
-          AND rsi BETWEEN 20 AND 60
+          AND rsi BETWEEN 5 AND 60
           AND vol_k >= 0.6
         ORDER BY gap_pct ASC
         """
