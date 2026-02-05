@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import duckdb
@@ -8,6 +8,8 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from pathlib import Path
 import logging
+import subprocess
+import sys
 from datetime import timezone
 from svc_v2.config_loader import load_settings
 
@@ -49,9 +51,43 @@ class HealthCheck(BaseModel):
     status: str
     db_connected: bool
 
+class TaskResponse(BaseModel):
+    message: str
+    task_id: str = "background"
+
+def run_script(script_path: str):
+    """Helper para ejecutar scripts de tools/ en background."""
+    try:
+        logging.info(f"🚀 Triggering background script: {script_path}")
+        # Usamos sys.executable para garantizar que usamos el mismo venv
+        subprocess.run([sys.executable, script_path], check=True)
+        logging.info(f"✅ Script finished: {script_path}")
+    except Exception as e:
+        logging.error(f"❌ Script failed {script_path}: {e}")
+
 # --- Endpoints ---
 
 from fastapi.responses import RedirectResponse
+
+@app.post("/api/v2/system/refresh-watchlist", response_model=TaskResponse)
+def refresh_watchlist(background_tasks: BackgroundTasks):
+    """Ejecuta tools/refresh_watchlist.py para actualizar candidatos sin bajar datos."""
+    script = "tools/refresh_watchlist.py"
+    if not Path(script).exists():
+        raise HTTPException(status_code=500, detail="Tool not found")
+    
+    background_tasks.add_task(run_script, script)
+    return {"message": "Watchlist refresh triggered in background"}
+
+@app.post("/api/v2/system/recalc-indicators", response_model=TaskResponse)
+def recalc_indicators(background_tasks: BackgroundTasks):
+    """Ejecuta tools/recalc_indicators.py (Heavy Task)."""
+    script = "tools/recalc_indicators.py"
+    if not Path(script).exists():
+        raise HTTPException(status_code=500, detail="Tool not found")
+    
+    background_tasks.add_task(run_script, script)
+    return {"message": "Indicator recalculation triggered. This may take a while."}
 
 # ...
 

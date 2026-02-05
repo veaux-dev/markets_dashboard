@@ -41,7 +41,34 @@
         display:flex;
         justify-content:space-between;
         align-items:center;
+        gap: 20px;
+        flex-wrap: wrap;
       }
+      .actions{
+        display:flex;
+        gap:10px;
+        align-items:center;
+      }
+      .ticker-input{
+        padding:8px 12px;
+        border-radius:10px;
+        border:1px solid var(--stroke);
+        background:#0b1724;
+        color:var(--ink);
+        font-size:14px;
+        width: 120px;
+      }
+      .btn-load{
+        color:var(--ink);
+        text-decoration:none;
+        border:1px solid var(--stroke);
+        padding:8px 14px;
+        border-radius:10px;
+        font-size:14px;
+        background:rgba(255,255,255,0.03);
+        cursor: pointer;
+      }
+      .btn-load:hover{ background: rgba(255,255,255,0.08); }
       .title{
         font-family:"Space Grotesk",sans-serif;
         font-size:38px;
@@ -148,7 +175,15 @@
           <h1 class="title">Market Screener</h1>
           <p class="subtitle">Dynamic Watchlist (Broad Scan candidates)</p>
         </div>
-        <div id="statusPill" class="badge-strat">Syncing...</div>
+        <div class="actions">
+          <div id="statusPill" class="badge-strat" style="margin-right:10px">Syncing...</div>
+          <div style="display:flex; gap:8px; margin-right:20px; border-right:1px solid var(--stroke); padding-right:20px;">
+            <button class="btn-load" id="btnRefreshList" title="Re-run strategies on existing data">↻ Refresh List</button>
+            <button class="btn-load" id="btnRecalc" title="Recalculate indicators (Slow)" style="border-color:var(--stroke); color:var(--muted)">⚠ Recalc DB</button>
+          </div>
+          <input class="ticker-input" id="manualTicker" placeholder="Ticker (e.g. AAPL)">
+          <button class="btn-load" id="btnGo">Go to Deep View</button>
+        </div>
       </div>
 
       <div class="header-row">
@@ -168,6 +203,36 @@
     <script>
       const grid = document.getElementById("screenerGrid");
       const statusPill = document.getElementById("statusPill");
+      const manualTicker = document.getElementById("manualTicker");
+      const btnGo = document.getElementById("btnGo");
+      const btnRefreshList = document.getElementById("btnRefreshList");
+      const btnRecalc = document.getElementById("btnRecalc");
+
+      btnGo.onclick = () => {
+        const t = manualTicker.value.trim().toUpperCase();
+        if (t) window.location.href = `triple_screen.html?ticker=${t}`;
+      };
+      manualTicker.onkeydown = (e) => { if (e.key === 'Enter') btnGo.click(); };
+
+      btnRefreshList.onclick = async () => {
+        if(confirm("Refresh dynamic watchlist from existing DB data?")) {
+            statusPill.textContent = "Running...";
+            try {
+                await fetch('/api/v2/system/refresh-watchlist', {method:'POST'});
+                setTimeout(loadScreener, 2000); // Give it a sec
+            } catch(e) { alert("Error: " + e.message); }
+        }
+      };
+
+      btnRecalc.onclick = async () => {
+        if(confirm("⚠ WARNING: This will recalculate indicators for ALL tickers. It may take minutes.\n\nContinue?")) {
+            statusPill.textContent = "Recalculating...";
+            try {
+                await fetch('/api/v2/system/recalc-indicators', {method:'POST'});
+                alert("Recalculation started in background. Check logs or refresh later.");
+            } catch(e) { alert("Error: " + e.message); }
+        }
+      };
 
       async function loadScreener(){
         try {
