@@ -26,9 +26,27 @@ def main():
     print("   🧹 Limpiando candidatos expirados...")
     db.conn.execute("DELETE FROM dynamic_watchlist WHERE expires_at < now()")
 
+    # Identificar holdings para SELL_STRENGTH
+    # HoldingConfig puede ser objeto o string
+    holdings = []
+    for h in cfg.portfolios.holdings:
+        if hasattr(h, 'ticker'): holdings.append(h.ticker)
+        else: holdings.append(str(h))
+    
     for strat in strategies:
         print(f"   🔍 Ejecutando {strat}...")
+        
         candidates = eng.run_screen(strat)
+        
+        if candidates.empty:
+            print("      (Sin candidatos)")
+            continue
+
+        # FILTER: SELL_STRENGTH only for holdings
+        if strat == "SELL_STRENGTH":
+            original_count = len(candidates)
+            candidates = candidates[candidates['ticker'].isin(holdings)]
+            print(f"      🛡️ Filtrado SELL_STRENGTH: {original_count} -> {len(candidates)} (Solo Holdings)")
         
         if not candidates.empty:
             print(f"      ✅ Encontrados {len(candidates)} candidatos.")
@@ -37,7 +55,7 @@ def main():
                 db.add_to_dynamic_watchlist(t, reason=strat, days_to_keep=3)
                 total_added += 1
         else:
-            print("      (Sin candidatos)")
+            print("      (Ninguno tras filtro)")
 
     print(f"\n✨ Watchlist actualizada. Total candidatos activos: {total_added}")
     db.close()

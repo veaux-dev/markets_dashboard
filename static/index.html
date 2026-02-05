@@ -80,91 +80,69 @@
         margin-top:8px;
         font-size:16px;
       }
-      .grid{
-        display:grid;
-        grid-template-columns:1fr;
-        gap:20px;
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        font-size: 14px;
       }
-      .card{
-        background:var(--card);
-        border:1px solid var(--stroke);
-        border-radius:16px;
-        padding:20px;
-        transition:transform 0.2s ease, border-color 0.2s ease;
-        text-decoration:none;
-        color:inherit;
-        display:grid;
-        grid-template-columns: 120px 2fr 1fr 1fr 1fr 100px;
-        align-items:center;
-        gap:16px;
+      th {
+        text-align: left;
+        padding: 12px 16px;
+        color: var(--muted);
+        font-weight: 600;
+        border-bottom: 1px solid var(--stroke);
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.5px;
       }
-      .card:hover{
-        border-color:var(--accent);
-        transform:translateX(4px);
-        background:rgba(255,255,255,0.05);
+      td {
+        padding: 10px 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+        vertical-align: middle;
       }
-      .ticker-box{
-        font-family:"Space Grotesk",sans-serif;
-        font-size:22px;
-        font-weight:700;
-        color:var(--accent);
+      tr:hover td {
+        background: rgba(255,255,255,0.02);
       }
-      .name-box{
-        display:flex;
-        flex-direction:column;
+      .ticker-cell {
+        font-family: "Space Grotesk", sans-serif;
+        font-weight: 700;
+        color: var(--accent);
+        font-size: 15px;
       }
-      .name-box .name{ font-weight:500; font-size:15px; }
-      .name-box .reason{ color:var(--muted); font-size:12px; margin-top:4px; }
-      
-      .metric{
-        display:flex;
-        flex-direction:column;
+      .name-cell {
+        color: var(--ink);
+        font-weight: 500;
       }
-      .metric .label{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
-      .metric .value{ font-weight:600; font-size:16px; margin-top:4px; }
-      
+      .meta-cell {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .row-link {
+        text-decoration: none;
+        color: inherit;
+        display: contents; /* Trick to make <a> wrap tr behavior? No, better click handler or <a> inside td */
+      }
+      /* Clickable row technique */
+      tr { cursor: pointer; }
+
       .val-up{ color:var(--accent); }
       .val-down{ color:var(--danger); }
       .val-neutral{ color:var(--muted); }
 
       .badge-strat{
-        padding:4px 8px;
-        border-radius:6px;
-        font-size:11px;
+        padding:3px 8px;
+        border-radius:4px;
+        font-size:10px;
         font-weight:700;
         background:rgba(255,255,255,0.05);
         border:1px solid var(--stroke);
         display:inline-block;
+        margin-right: 6px;
       }
       
-      .loading{
-        text-align:center;
-        padding:100px;
-        color:var(--muted);
-        font-size:18px;
-      }
-      
-      .header-row{
-        display:grid;
-        grid-template-columns: 120px 2fr 1fr 1fr 1fr 100px;
-        gap:16px;
-        padding:0 20px 10px;
-        color:var(--muted);
-        font-size:12px;
-        text-transform:uppercase;
-        letter-spacing:1px;
-        border-bottom:1px solid var(--stroke);
-        margin-bottom:10px;
-      }
-
-      @media (max-width:900px){
-        .header-row{ display:none; }
-        .card{
-            grid-template-columns: 1fr 1fr;
-            gap:12px;
-        }
-        .ticker-box{ grid-column: span 2; }
-        .name-box{ grid-column: span 2; margin-bottom:10px; }
+      @media (max-width: 700px) {
+        .hide-mobile { display: none; }
       }
     </style>
   </head>
@@ -178,121 +156,76 @@
         <div class="actions">
           <div id="statusPill" class="badge-strat" style="margin-right:10px">Syncing...</div>
           <div style="display:flex; gap:8px; margin-right:20px; border-right:1px solid var(--stroke); padding-right:20px;">
-            <button class="btn-load" id="btnRefreshList" title="Re-run strategies on existing data">↻ Refresh List</button>
-            <button class="btn-load" id="btnRecalc" title="Recalculate indicators (Slow)" style="border-color:var(--stroke); color:var(--muted)">⚠ Recalc DB</button>
+            <button class="btn-load" id="btnRefreshList" title="Re-run strategies on existing data">↻ Refresh</button>
+            <button class="btn-load" id="btnRecalc" title="Recalculate indicators (Slow)" style="border-color:var(--stroke); color:var(--muted)">⚠ Recalc</button>
           </div>
           <input class="ticker-input" id="manualTicker" placeholder="Ticker (e.g. AAPL)">
-          <button class="btn-load" id="btnGo">Go to Deep View</button>
+          <button class="btn-load" id="btnGo">Go</button>
         </div>
       </div>
 
-      <div class="header-row">
-        <div>Ticker</div>
-        <div>Company / Reason</div>
-        <div>Price / Chg</div>
-        <div>RSI (1d)</div>
-        <div>ADX (1d)</div>
-        <div>Vol K</div>
-      </div>
-
-      <div class="grid" id="screenerGrid">
-        <div class="loading">Fetching candidates from DuckDB...</div>
+      <div id="tableContainer">
+        <div class="loading">Fetching candidates...</div>
       </div>
     </div>
 
     <script>
-      const grid = document.getElementById("screenerGrid");
-      const statusPill = document.getElementById("statusPill");
-      const manualTicker = document.getElementById("manualTicker");
-      const btnGo = document.getElementById("btnGo");
-      const btnRefreshList = document.getElementById("btnRefreshList");
-      const btnRecalc = document.getElementById("btnRecalc");
-
-      btnGo.onclick = () => {
-        const t = manualTicker.value.trim().toUpperCase();
-        if (t) window.location.href = `triple_screen.html?ticker=${t}`;
-      };
-      manualTicker.onkeydown = (e) => { if (e.key === 'Enter') btnGo.click(); };
-
-      btnRefreshList.onclick = async () => {
-        if(confirm("Refresh dynamic watchlist from existing DB data?")) {
-            statusPill.textContent = "Running...";
-            try {
-                await fetch('/api/v2/system/refresh-watchlist', {method:'POST'});
-                setTimeout(loadScreener, 2000); // Give it a sec
-            } catch(e) { alert("Error: " + e.message); }
-        }
-      };
-
-      btnRecalc.onclick = async () => {
-        if(confirm("⚠ WARNING: This will recalculate indicators for ALL tickers. It may take minutes.\n\nContinue?")) {
-            statusPill.textContent = "Recalculating...";
-            try {
-                await fetch('/api/v2/system/recalc-indicators', {method:'POST'});
-                alert("Recalculation started in background. Check logs or refresh later.");
-            } catch(e) { alert("Error: " + e.message); }
-        }
-      };
-
-      async function loadScreener(){
-        try {
-          const resp = await fetch('/api/v2/screener');
-          if (!resp.ok) throw new Error("API Error");
-          const data = await resp.json();
-          
-          if (data.length === 0) {
-            grid.innerHTML = '<div class="loading">No candidates found in dynamic_watchlist. Check if Broad Scan has run.</div>';
-            statusPill.textContent = "Empty";
-            return;
-          }
-
-          renderScreener(data);
-          statusPill.textContent = `Active: ${data.length}`;
-        } catch (err) {
-          grid.innerHTML = `<div class="loading">Error connecting to API: ${err.message}</div>`;
-          statusPill.textContent = "Offline";
-        }
-      }
+      const tableContainer = document.getElementById("tableContainer");
+      // ... (Rest of logic remains, renderScreener changes)
 
       function renderScreener(items){
-        grid.innerHTML = "";
+        if(!items.length) {
+            tableContainer.innerHTML = '<div class="loading">No candidates found.</div>';
+            return;
+        }
+        
+        let html = `
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Strategy / Reason</th>
+                <th>Price</th>
+                <th>Chg (1D)</th>
+                <th>RSI</th>
+                <th class="hide-mobile">ADX</th>
+                <th class="hide-mobile">Vol K</th>
+                <th class="hide-mobile">Added</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        
         items.forEach(item => {
           const chg = item.chg_pct || 0;
           const chgClass = chg >= 0 ? 'val-up' : 'val-down';
-          const rsiVal = item.rsi ? item.rsi.toFixed(1) : '—';
-          const adxVal = item.adx ? item.adx.toFixed(1) : '—';
-          const volVal = item.vol_k ? `x${item.vol_k.toFixed(2)}` : '—';
+          const rsiVal = item.rsi != null ? item.rsi.toFixed(1) : '—';
+          const adxVal = item.adx != null ? item.adx.toFixed(1) : '—';
+          const volVal = item.vol_k != null ? `x${item.vol_k.toFixed(2)}` : '—';
+          const priceVal = item.close != null ? item.close.toFixed(2) : '—';
+          const dateAdded = item.added_at ? item.added_at.split(' ')[0] : '';
           
-          const card = document.createElement("a");
-          card.className = "card";
-          card.href = `triple_screen.html?ticker=${item.ticker}`;
-          
-          card.innerHTML = `
-            <div class="ticker-box">${item.ticker}</div>
-            <div class="name-box">
-                <span class="name">${item.name || item.ticker}</span>
-                <span class="reason"><span class="badge-strat">${item.reason}</span> Added: ${item.added_at.split(' ')[0]}</span>
-            </div>
-            <div class="metric">
-                <span class="label">Price</span>
-                <span class="value">${item.close ? item.close.toFixed(2) : '—'} <span class="${chgClass}" style="font-size:12px">${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%</span></span>
-            </div>
-            <div class="metric">
-                <span class="label">RSI (14)</span>
-                <span class="value ${getRsiClass(item.rsi)}">${rsiVal}</span>
-            </div>
-            <div class="metric">
-                <span class="label">ADX</span>
-                <span class="value ${item.adx > 25 ? 'val-up' : ''}">${adxVal}</span>
-            </div>
-            <div class="metric">
-                <span class="label">Volume</span>
-                <span class="value ${item.vol_k > 1.5 ? 'val-up' : ''}">${volVal}</span>
-            </div>
+          html += `
+            <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
+              <td class="ticker-cell">${item.ticker}</td>
+              <td>
+                <span class="badge-strat">${item.reason}</span>
+                <span class="meta-cell">${item.name || ''}</span>
+              </td>
+              <td style="font-weight:600">${priceVal}</td>
+              <td class="${chgClass}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</td>
+              <td class="${getRsiClass(item.rsi)}">${rsiVal}</td>
+              <td class="hide-mobile ${item.adx > 25 ? 'val-up' : 'val-neutral'}">${adxVal}</td>
+              <td class="hide-mobile ${item.vol_k > 1.5 ? 'val-up' : 'val-neutral'}">${volVal}</td>
+              <td class="meta-cell hide-mobile">${dateAdded}</td>
+            </tr>
           `;
-          grid.appendChild(card);
         });
+        
+        html += `</tbody></table>`;
+        tableContainer.innerHTML = html;
       }
+
 
       function getRsiClass(val){
         if (!val) return '';

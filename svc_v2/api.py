@@ -213,8 +213,9 @@ def get_ticker_details(ticker: str):
         # Calcular Bias/Phase/Force (Lógica de Triple Screen)
         # Esto debería estar en DB idealmente, pero lo calculamos al vuelo por ahora
         bias = "neutral"
-        if last_row['close'] > last_row['ema_200']: bias = "buy"
-        elif last_row['close'] < last_row['ema_200']: bias = "sell"
+        if last_row['close'] is not None and last_row['ema_200'] is not None:
+            if last_row['close'] > last_row['ema_200']: bias = "buy"
+            elif last_row['close'] < last_row['ema_200']: bias = "sell"
         
         # Estructurar series para lightweight-charts
         candles = []

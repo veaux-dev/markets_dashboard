@@ -398,7 +398,16 @@
           },
           grid: { vertLines: { color: "#172636" }, horzLines: { color: "#172636" } },
           rightPriceScale: { borderColor: "#1f2d3a" },
-          timeScale: { borderColor: "#1f2d3a", timeVisible: timeVisible, secondsVisible: false },
+          timeScale: { 
+            borderColor: "#1f2d3a", 
+            timeVisible: timeVisible, 
+            secondsVisible: false,
+            tickMarkFormatter: (time) => {
+                const date = new Date(time * 1000);
+                // Formato simple HH:MM local
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+          },
           watermark: { visible: false },
         });
       }
@@ -614,8 +623,16 @@
         const url = `/api/v2/ticker/${encodeURIComponent(ticker)}`;
         const resp = await fetch(url);
         if (!resp.ok) {
-            const err = await resp.json();
-            throw new Error(err.detail || "Not found");
+            let errorMsg = "Not found";
+            try {
+                const err = await resp.json();
+                errorMsg = err.detail || errorMsg;
+            } catch (e) {
+                // Si no es JSON, leer texto (html error 500 etc)
+                const text = await resp.text();
+                errorMsg = `Server Error (${resp.status}): ${text.substring(0, 100)}...`;
+            }
+            throw new Error(errorMsg);
         }
         return resp.json();
       }
