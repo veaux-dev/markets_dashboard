@@ -39,8 +39,7 @@ def main():
         else:
             print("      (Sin candidatos)")
 
-    print(f"
-✨ Watchlist actualizada. Total candidatos activos: {total_added}")
+    print(f"\n✨ Watchlist actualizada. Total candidatos activos: {total_added}")
     db.close()
 
 if __name__ == "__main__":

@@ -111,24 +111,28 @@ def get_screener_results():
     con sus últimos indicadores calculados (timeframe 1d).
     """
     query = """
-        WITH latest_indicators AS (
-            SELECT *, row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
-            FROM indicators
-            WHERE timeframe = '1d'
+        WITH latest_data AS (
+            SELECT 
+                i.*, 
+                o.close, 
+                row_number() OVER (PARTITION BY i.ticker ORDER BY i.timestamp DESC) as rn
+            FROM indicators i
+            JOIN ohlcv o USING (ticker, timeframe, timestamp)
+            WHERE i.timeframe = '1d'
         )
         SELECT 
             w.ticker, 
             m.name, 
             w.reason, 
             w.added_at,
-            i.close, 
-            i.chg_pct, 
-            i.rsi, 
-            i.adx, 
-            i.vol_k
+            d.close, 
+            d.chg_pct, 
+            d.rsi, 
+            d.adx, 
+            d.vol_k
         FROM dynamic_watchlist w
         LEFT JOIN ticker_metadata m ON w.ticker = m.ticker
-        LEFT JOIN latest_indicators i ON w.ticker = i.ticker AND i.rn = 1
+        LEFT JOIN latest_data d ON w.ticker = d.ticker AND d.rn = 1
         WHERE w.expires_at > now()
         ORDER BY w.added_at DESC
     """
