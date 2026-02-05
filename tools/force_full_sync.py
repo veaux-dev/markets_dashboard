@@ -118,8 +118,15 @@ def download_chunk_individually(tickers, period, interval, db):
             df = data.reset_index()
             df['Ticker'] = t
             
-            # Limpieza estándar
-            df.columns = [str(c).lower() for c in df.columns]
+            # Limpieza estándar robusta
+            new_cols = []
+            for c in df.columns:
+                if isinstance(c, tuple):
+                    new_cols.append(str(c[0]).lower())
+                else:
+                    new_cols.append(str(c).lower())
+            df.columns = new_cols
+
             if 'datetime' in df.columns: df.rename(columns={'datetime': 'date'}, inplace=True)
             
             if 'date' in df.columns:
@@ -128,7 +135,7 @@ def download_chunk_individually(tickers, period, interval, db):
                 
                 db.upsert_ohlcv(df, interval) # interval == timeframe aqui
             else:
-                print(f"         ❌ {t}: Estructura inválida.")
+                print(f"         ❌ {t}: Estructura inválida. Cols encontradas: {df.columns.tolist()}")
 
         except Exception as e:
             print(f"         ❌ {t}: Error {e}")
