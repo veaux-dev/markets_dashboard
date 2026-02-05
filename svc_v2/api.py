@@ -162,14 +162,6 @@ def get_ticker_details(ticker: str):
         # Ordenar ascendente para el gráfico
         df = df.sort_values("timestamp")
         
-        # Calcular Bias/Phase/Force (Lógica de Triple Screen)
-        # Esto debería estar en DB idealmente, pero lo calculamos al vuelo por ahora
-        last_row = df.iloc[-1]
-        
-        bias = "neutral"
-        if last_row['close'] > last_row['ema_200']: bias = "buy"
-        elif last_row['close'] < last_row['ema_200']: bias = "sell"
-        
         # Estructurar series para lightweight-charts
         candles = []
         vol_series = []
@@ -179,8 +171,19 @@ def get_ticker_details(ticker: str):
         ema_mid = []
         ema_long = []
         
+        seen_ts = set()
         for _, row in df.iterrows():
             ts = int(row['timestamp'].timestamp()) # Unix timestamp
+            
+            # 1. Evitar duplicados de tiempo (rompen Lightweight Charts)
+            if ts in seen_ts:
+                continue
+            
+            # 2. Filtrar velas rotas (faltan precios)
+            if row['open'] is None or row['close'] is None or row['high'] is None or row['low'] is None:
+                continue
+
+            seen_ts.add(ts)
             
             candles.append({
                 "time": ts,
