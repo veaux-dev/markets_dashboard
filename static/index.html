@@ -171,7 +171,50 @@
 
     <script>
       const tableContainer = document.getElementById("tableContainer");
-      // ... (Rest of logic remains, renderScreener changes)
+      const statusPill = document.getElementById("statusPill");
+      const manualTicker = document.getElementById("manualTicker");
+      const btnGo = document.getElementById("btnGo");
+      const btnRefreshList = document.getElementById("btnRefreshList");
+      const btnRecalc = document.getElementById("btnRecalc");
+
+      btnGo.onclick = () => {
+        const t = manualTicker.value.trim().toUpperCase();
+        if (t) window.location.href = `triple_screen.html?ticker=${t}`;
+      };
+      manualTicker.onkeydown = (e) => { if (e.key === 'Enter') btnGo.click(); };
+
+      btnRefreshList.onclick = async () => {
+        if(confirm("Refresh dynamic watchlist from existing DB data?")) {
+            statusPill.textContent = "Running...";
+            try {
+                await fetch('/api/v2/system/refresh-watchlist', {method:'POST'});
+                setTimeout(loadScreener, 2000); // Give it a sec
+            } catch(e) { alert("Error: " + e.message); }
+        }
+      };
+
+      btnRecalc.onclick = async () => {
+        if(confirm("⚠ WARNING: This will recalculate indicators for ALL tickers. It may take minutes.\n\nContinue?")) {
+            statusPill.textContent = "Recalculating...";
+            try {
+                await fetch('/api/v2/system/recalc-indicators', {method:'POST'});
+                alert("Recalculation started in background. Check logs or refresh later.");
+            } catch(e) { alert("Error: " + e.message); }
+        }
+      };
+
+      async function loadScreener(){
+        try {
+          const resp = await fetch('/api/v2/screener');
+          if (!resp.ok) throw new Error("API Error");
+          const data = await resp.json();
+          renderScreener(data);
+          statusPill.textContent = `Active: ${data.length}`;
+        } catch (err) {
+          tableContainer.innerHTML = `<div class="loading">Error connecting to API: ${err.message}</div>`;
+          statusPill.textContent = "Offline";
+        }
+      }
 
       function renderScreener(items){
         if(!items.length) {
