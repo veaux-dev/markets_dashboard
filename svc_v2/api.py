@@ -140,6 +140,9 @@ def get_screener_results():
     if df.empty:
         return []
     
+    # Reemplazar NaN con None para compatibilidad JSON
+    df = df.replace({np.nan: None})
+    
     # Convertir fechas a string para JSON
     df['added_at'] = df['added_at'].astype(str)
     return df.to_dict(orient="records")
