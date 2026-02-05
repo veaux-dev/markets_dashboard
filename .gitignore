@@ -15,3 +15,12 @@ out/
 out/legacy/
 NEXT_UP.md
 
+# V2 Specifics
+*.duckdb
+*.duckdb.wal
+yfinance.cache
+.pytest_cache/
+.coverage
+htmlcov/
+site/
+

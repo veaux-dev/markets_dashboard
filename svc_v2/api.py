@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import duckdb
 import pandas as pd
+import numpy as np
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from pathlib import Path
@@ -154,6 +155,9 @@ def get_ticker_details(ticker: str):
         
         if df.empty:
             continue
+            
+        # Reemplazar NaN con None para compatibilidad JSON
+        df = df.replace({np.nan: None})
             
         # Ordenar ascendente para el gráfico
         df = df.sort_values("timestamp")
