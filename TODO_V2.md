@@ -38,15 +38,22 @@
 - [x] **Job: Broad Scan (`jobs/broad_scan.py`):**
     - [x] Diario (21:00).
     - [x] Alimenta `dynamic_watchlist`.
+    - [x] Optimización Batch Download (yfinance).
 - [x] **Job: Detailed Scan (`jobs/detailed_scan.py`):**
     - [x] Intradía (Configurable).
     - [x] Consume Watchlist + Dynamic.
+    - [x] Reporte segmentado (Holdings vs Market).
+
+## 📢 Fase 6: Notificaciones (Next Up)
+- [ ] **Notifier Module:** `svc_v2/notifier.py` (Discord/Telegram).
+- [ ] **Integración:** Conectar alertas de `detailed_scan` al Notifier.
+- [ ] **Smart Alerting:** Evitar spam (Cooldowns, solo alertas importantes).
+
+## 🖥 Fase 7: Frontend & API
+- [ ] **API Layer:** FastAPI para exponer datos de DuckDB.
+- [ ] **Web UI:** Dashboard reactivo (Triple Screen v2).
+- [ ] **Signal Logging:** Historial de alertas para análisis posterior.
 
 ## 🅿️ Parking Lot / Backlog
 - [x] **Holdings Metadata:** Migrado a DB (`portfolio_transactions` table + `view_portfolio_holdings`).
-- [x] **Docker Stack V2:**
-    - [x] `requirements_v2.txt` creado.
-    - [x] `Dockerfile.v2` creado.
-    - [x] `docker-compose.v2.yml` creado.
-- [ ] **Notificaciones:** Integrar Discord Webhook en `run_job_subprocess` o dentro de los scripts.
-- [ ] **Frontend:** TripleScreen UI (Fase 7).
+- [x] **Docker Stack V2:** Completado y Desplegado en NAS.

@@ -1,5 +1,12 @@
 import logging
+import sys
+from pathlib import Path
 import yfinance as yf
+
+# Ajustar path para importar módulos del proyecto
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.append(str(PROJECT_ROOT))
+
 from svc_v2.db import Database
 from svc_v2.collector import Collector
 from svc_v2.universe_loader import get_sp500_tickers, get_nasdaq100_tickers, get_key_etfs_indices
