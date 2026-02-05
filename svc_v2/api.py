@@ -162,6 +162,16 @@ def get_ticker_details(ticker: str):
         # Ordenar ascendente para el gráfico
         df = df.sort_values("timestamp")
         
+        # Obtener la última fila para KPIs (Bias, Phase, etc.)
+        # IMPORTANTE: Definir antes del loop para evitar NameError
+        last_row = df.iloc[-1]
+        
+        # Calcular Bias/Phase/Force (Lógica de Triple Screen)
+        # Esto debería estar en DB idealmente, pero lo calculamos al vuelo por ahora
+        bias = "neutral"
+        if last_row['close'] > last_row['ema_200']: bias = "buy"
+        elif last_row['close'] < last_row['ema_200']: bias = "sell"
+        
         # Estructurar series para lightweight-charts
         candles = []
         vol_series = []
