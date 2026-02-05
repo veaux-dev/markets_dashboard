@@ -149,7 +149,7 @@ def get_ticker_details(ticker: str):
             JOIN ohlcv USING (ticker, timeframe, timestamp)
             WHERE ticker = ? AND timeframe = ?
             ORDER BY timestamp DESC
-            LIMIT 300
+            LIMIT 1500
         """
         df = query_db(q, [ticker, tf])
         

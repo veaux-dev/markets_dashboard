@@ -691,7 +691,7 @@
           metaLine.textContent = `Ticker: ${payload.ticker}${nameText} | Updated: ${updatedPretty}`;
           resetRefreshCountdown(payload.updated_at);
           const tfs = payload.timeframes || {};
-          const order = ["1d","2h","15m"];
+          const order = ["1d","1h","15m"];
           order.forEach(tf => {
             if (tfs[tf]) renderFrame(tf, tfs[tf]);
           });
