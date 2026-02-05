@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Triple Screen</title>
+    <title>Triple Screen - MarketDashboard V2</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -266,18 +266,13 @@
       .refresh-btn{
         border-radius:10px;
         border:1px solid var(--stroke);
-        background:var(--panel);
+        background:rgba(255,255,255,0.03);
         color:var(--ink);
         padding:6px 10px;
         font-size:0.9em;
         cursor:pointer;
       }
       .refresh-btn:hover{ border-color:#334155; }
-      .dot-sup:before{ background:#94a3b8; }
-      .dot-res:before{ background:#f97316; }
-      .dot-vol:before{ background:#22c55e; }
-      .dot-rsi:before{ background:#a855f7; }
-      .dot-macd:before{ background:#60a5fa; }
       .empty{
         padding:18px;
         border:1px dashed var(--stroke);
@@ -306,16 +301,16 @@
       <div class="hero">
         <div>
           <div class="title">Triple Screen</div>
-          <div class="subtitle">Multi-timeframe view for one ticker</div>
+          <div class="subtitle">Multi-timeframe Deep View (V2 API)</div>
         </div>
         <div class="actions">
-          <input class="ticker-input" id="tickerInput" placeholder="AAPL.MX">
+          <input class="ticker-input" id="tickerInput" placeholder="AAPL">
           <button class="back" id="loadBtn">Load</button>
           <div class="countdown">
             <span>Next update: <strong id="nextRefresh">--</strong></span>
             <button class="refresh-btn" id="refreshNow">Refresh</button>
           </div>
-          <a class="back" href="u2_screener_FIJO_embedded.html">Back to screener</a>
+          <a class="back" href="index.html">Back to Screener</a>
         </div>
       </div>
 
@@ -477,9 +472,6 @@
         const biasText = safe(data.bias);
         const phaseText = safe(data.phase);
         const forceText = data.force == null ? "—" : Number(data.force).toFixed(1) + "%";
-        const emaMidLen = data.ema_mid_len == null ? "M" : `M${data.ema_mid_len}`;
-        const emaShortLen = data.ema_short_len == null ? "S" : `S${data.ema_short_len}`;
-        const emaLongLen = data.ema_long_len == null ? "L" : `L${data.ema_long_len}`;
         const adxText = data.adx == null ? "—" : Number(data.adx).toFixed(1);
         const rsiText = data.rsi == null ? "—" : Number(data.rsi).toFixed(1);
         const macdText = data.macd_hist == null ? "—" : Number(data.macd_hist).toFixed(2);
@@ -510,9 +502,6 @@
                 <span class="legend-chip"><span class="legend-dot legend-ema-21"></span>21</span>
                 <span class="legend-chip"><span class="legend-dot legend-ema-50"></span>50</span>
                 <span class="legend-chip"><span class="legend-dot legend-ema-200"></span>200</span>
-                ·
-                <span class="legend-chip"><span class="legend-dot legend-sup"></span>Support</span>
-                <span class="legend-chip"><span class="legend-dot legend-res"></span>Resistance</span>
                 · Volume
               </div>
             </div>
@@ -533,13 +522,9 @@
         const emaMid = (data.series && data.series.ema_mid) || [];
         const emaShort = (data.series && data.series.ema_short) || [];
         const emaLong = (data.series && data.series.ema_long) || [];
-        const support = (data.series && data.series.support) || [];
-        const resistance = (data.series && data.series.resistance) || [];
         const volumeSeries = (data.series && data.series.volume) || [];
         const rsiSeries = (data.series && data.series.rsi) || [];
         const macdHist = (data.series && data.series.macd_hist) || [];
-        const macdSignal = (data.series && data.series.macd_signal) || [];
-        const earningsDates = Array.isArray(data.earnings_dates) ? data.earnings_dates : [];
 
         requestAnimationFrame(() => {
           const intraday = tf !== "1d";
@@ -548,12 +533,6 @@
           const macdChart = initChart(macdEl, Math.max(140, macdEl.clientHeight), intraday);
           activeCharts.push(priceChart, rsiChart, macdChart);
           const supportsPanes = typeof priceChart.addSeries === "function";
-
-          let paneId = null;
-          if (typeof priceChart.addPane === "function") {
-            const pane = priceChart.addPane();
-            paneId = pane && pane.id ? pane.id : pane;
-          }
 
           let candleSeries = null;
           if (candles.length) {
@@ -592,51 +571,16 @@
                 }
               }
             } else {
-              priceChart.priceScale('right').applyOptions({
-                scaleMargins: { top: 0.08, bottom: 0.24 }
-              });
-              priceChart.priceScale('volume').applyOptions({
-                scaleMargins: { top: 0.8, bottom: 0 }
-              });
+              priceChart.priceScale('right').applyOptions({ scaleMargins: { top: 0.08, bottom: 0.24 } });
+              priceChart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
               volumeOptions.priceScaleId = "volume";
               addSeries(priceChart, LightweightCharts.HistogramSeries, volumeOptions).setData(volumeColored);
             }
           }
 
-          if (emaShort.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#43aa8b", lineWidth: 2, priceLineVisible: false }).setData(emaShort);
-          }
-          if (emaMid.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#f97316", lineWidth: 2, priceLineVisible: false }).setData(emaMid);
-          }
-          if (emaLong.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#4cc9f0", lineWidth: 2, priceLineVisible: false }).setData(emaLong);
-          }
-          if (support.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#94a3b8", lineWidth: 1, lineStyle: 2, priceLineVisible: false }).setData(support);
-          }
-          if (resistance.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#f97316", lineWidth: 1, lineStyle: 2, priceLineVisible: false }).setData(resistance);
-          }
-
-          if (tf === "1d" && candleSeries && earningsDates.length) {
-            const markers = earningsDates
-              .map((d) => {
-                const dt = new Date(d);
-                if (Number.isNaN(dt.getTime())) return null;
-                return {
-                  time: Math.floor(dt.getTime() / 1000),
-                  position: "aboveBar",
-                  color: "#eab308",
-                  shape: "diamond",
-                  text: "E",
-                };
-              })
-              .filter(Boolean);
-            if (markers.length) {
-              candleSeries.setMarkers(markers);
-            }
-          }
+          if (emaShort.length) addSeries(priceChart, LightweightCharts.LineSeries, { color: "#43aa8b", lineWidth: 2, priceLineVisible: false }).setData(emaShort);
+          if (emaMid.length) addSeries(priceChart, LightweightCharts.LineSeries, { color: "#f97316", lineWidth: 2, priceLineVisible: false }).setData(emaMid);
+          if (emaLong.length) addSeries(priceChart, LightweightCharts.LineSeries, { color: "#4cc9f0", lineWidth: 2, priceLineVisible: false }).setData(emaLong);
 
           if (rsiSeries.length) {
             const rsiLine = addSeries(rsiChart, LightweightCharts.LineSeries, { color: "#a855f7", lineWidth: 2, priceLineVisible: false });
@@ -666,25 +610,14 @@
         grid.appendChild(box);
       }
 
-      function baseDir(){
-        const p = window.location.pathname;
-        return p.endsWith("/") ? p : p.slice(0, p.lastIndexOf("/") + 1);
-      }
       async function fetchDetails(ticker){
-        const base = baseDir();
-        const encoded = `${base}details/${encodeURIComponent(ticker)}.json`;
-        const raw = `${base}details/${ticker}.json`;
-        const tryFetch = async (url) => {
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error("Not found");
-          return resp.json();
-        };
-        try{
-          return await tryFetch(encoded);
-        }catch(err){
-          if (encoded === raw) throw err;
-          return await tryFetch(raw);
+        const url = `/api/v2/ticker/${encodeURIComponent(ticker)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || "Not found");
         }
+        return resp.json();
       }
 
       async function loadTicker(ticker){
@@ -701,15 +634,13 @@
           metaLine.textContent = `Ticker: ${payload.ticker}${nameText} | Updated: ${updatedPretty}`;
           resetRefreshCountdown(payload.updated_at);
           const tfs = payload.timeframes || {};
-          const order = ["1d","2h","15m"];
+          const order = ["1d","1h","15m"];
           order.forEach(tf => {
             if (tfs[tf]) renderFrame(tf, tfs[tf]);
           });
-          if (!order.some(tf => tfs[tf])) {
-            renderEmpty("No timeframe data available.");
-          }
+          if (!order.some(tf => tfs[tf])) renderEmpty("No timeframe data available.");
         }catch(err){
-          renderEmpty("No detail file found for this ticker.");
+          renderEmpty("Error loading data: " + err.message);
         }
       }
 
@@ -717,11 +648,7 @@
         const t = tickerInput.value.trim();
         if (t) location.search = `?ticker=${encodeURIComponent(t)}`;
       });
-      tickerInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          loadBtn.click();
-        }
-      });
+      tickerInput.addEventListener("keydown", (event) => { if (event.key === "Enter") loadBtn.click(); });
 
       const initial = getTickerFromUrl();
       if (initial) {
@@ -735,16 +662,9 @@
       if (refreshBtn) {
         refreshBtn.addEventListener("click", () => {
           const t = tickerInput.value.trim() || getTickerFromUrl();
-          if (t) {
-            loadTicker(t);
-            resetRefreshCountdown();
-          }
+          if (t) { loadTicker(t); resetRefreshCountdown(); }
         });
       }
-
-      window.addEventListener("beforeunload", () => {
-        disposeCharts();
-      });
 
       function startRefreshCycle(){
         resetRefreshCountdown(null);
@@ -770,10 +690,7 @@
       function updateCountdown(){
         if (!nextRefresh || refreshDeadline == null) return;
         const ms = refreshDeadline - Date.now();
-        if (ms <= 0) {
-          nextRefresh.textContent = "0s";
-          return;
-        }
+        if (ms <= 0) { nextRefresh.textContent = "0s"; return; }
         const total = Math.ceil(ms / 1000);
         const mins = Math.floor(total / 60);
         const secs = total % 60;

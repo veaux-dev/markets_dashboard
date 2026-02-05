@@ -31,29 +31,20 @@
 - [x] Implementar `svc_v2/screener.py` (Estrategias SQL Multi-Timeframe).
 
 ## 🚀 Fase 5: Runners & Daemon
-- [x] **Daemon Orchestrator (`main_v2.py`):**
-    - [x] Loop infinito y Scheduler.
-    - [x] Ejecución aislada (Subprocesos).
-    - [x] Hot Reload de configuración.
-- [x] **Job: Broad Scan (`jobs/broad_scan.py`):**
-    - [x] Diario (21:00).
-    - [x] Alimenta `dynamic_watchlist`.
-    - [x] Optimización Batch Download (yfinance).
-- [x] **Job: Detailed Scan (`jobs/detailed_scan.py`):**
-    - [x] Intradía (Configurable).
-    - [x] Consume Watchlist + Dynamic.
-    - [x] Reporte segmentado (Holdings vs Market).
+- [x] **Daemon Orchestrator (`main_v2.py`):** Loop, Scheduler, Subprocesos.
+- [x] **Job: Broad Scan:** Diario (21:00), Batch Download, Dynamic Watchlist.
+- [x] **Job: Detailed Scan:** Intradía, Consume Watchlist, Reporte segmentado.
 
-## 📢 Fase 6: Notificaciones (Next Up)
-- [ ] **Notifier Module:** `svc_v2/notifier.py` (Discord/Telegram).
-- [ ] **Integración:** Conectar alertas de `detailed_scan` al Notifier.
-- [ ] **Smart Alerting:** Evitar spam (Cooldowns, solo alertas importantes).
+## 🖥 Fase 6: Frontend & API (In Progress)
+- [x] **API Layer:** FastAPI sirviendo datos de DuckDB.
+- [x] **Triple Screen v2:** UI reactiva conectada a la API con 1500 velas de historial.
+- [ ] **Screener UI:** Página principal para visualizar candidatos de la `dynamic_watchlist`.
+- [ ] **Portfolio View:** Visualización web de tus holdings y P&L.
 
-## 🖥 Fase 7: Frontend & API
-- [ ] **API Layer:** FastAPI para exponer datos de DuckDB.
-- [ ] **Web UI:** Dashboard reactivo (Triple Screen v2).
-- [ ] **Signal Logging:** Historial de alertas para análisis posterior.
+## 📢 Fase 7: Notificaciones
+- [ ] **Notifier Module:** Discord/Telegram.
+- [ ] **Smart Alerting:** Conectar alertas de `detailed_scan` al celular.
 
 ## 🅿️ Parking Lot / Backlog
-- [x] **Holdings Metadata:** Migrado a DB (`portfolio_transactions` table + `view_portfolio_holdings`).
-- [x] **Docker Stack V2:** Completado y Desplegado en NAS.
+- [x] **History Repair:** Script `force_full_sync.py` para recuperación de datos.
+- [x] **Portfolio CLI:** Gestión de transacciones con soporte multi-moneda.

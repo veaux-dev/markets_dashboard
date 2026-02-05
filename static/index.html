@@ -3,11 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Triple Screen</title>
+    <title>Market Screener V2</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js?v=5.1.0"></script>
     <style>
       :root{
         --bg-1:#0b1220;
@@ -19,7 +18,7 @@
         --danger:#ff6b6b;
         --card:#0f1e2f;
         --stroke:#1c2b3a;
-        --glow:rgba(61,220,151,0.22);
+        --panel:rgba(255,255,255,0.03);
       }
       *{box-sizing:border-box}
       body{
@@ -33,271 +32,112 @@
         min-height:100vh;
       }
       .wrap{
-        width:100vw;
-        max-width:none;
-        margin:0;
-        padding:24px 32px 60px;
+        max-width:1200px;
+        margin:0 auto;
+        padding:40px 24px 80px;
       }
       .hero{
+        margin-bottom:40px;
         display:flex;
-        align-items:flex-end;
         justify-content:space-between;
-        gap:16px;
-        margin-bottom:22px;
+        align-items:center;
       }
       .title{
-        font-family:"Space Grotesk",system-ui,sans-serif;
-        font-size:34px;
+        font-family:"Space Grotesk",sans-serif;
+        font-size:38px;
         font-weight:700;
-        letter-spacing:0.5px;
+        margin:0;
       }
       .subtitle{
         color:var(--muted);
-        font-size:14px;
-      }
-      .actions{
-        display:flex;
-        gap:10px;
-        align-items:center;
-        flex-wrap:wrap;
-      }
-      .pill{
-        background:rgba(255,255,255,0.04);
-        border:1px solid var(--stroke);
-        color:var(--muted);
-        padding:8px 12px;
-        border-radius:999px;
-        font-size:12px;
-      }
-      .back{
-        color:var(--ink);
-        text-decoration:none;
-        border:1px solid var(--stroke);
-        padding:8px 14px;
-        border-radius:10px;
-        font-size:14px;
-        background:rgba(255,255,255,0.03);
-      }
-      .ticker-input{
-        padding:8px 12px;
-        border-radius:10px;
-        border:1px solid var(--stroke);
-        background:#0b1724;
-        color:var(--ink);
-        font-size:14px;
+        margin-top:8px;
+        font-size:16px;
       }
       .grid{
         display:grid;
-        grid-template-columns:repeat(3,minmax(0,1fr));
-        gap:18px;
-        min-height:calc(100vh - 220px);
+        grid-template-columns:1fr;
+        gap:20px;
       }
       .card{
         background:var(--card);
         border:1px solid var(--stroke);
-        border-radius:18px;
-        padding:18px;
-        box-shadow:0 12px 40px rgba(0,0,0,0.35);
-        position:relative;
-        overflow:hidden;
-        animation:rise 0.6s ease both;
+        border-radius:16px;
+        padding:20px;
+        transition:transform 0.2s ease, border-color 0.2s ease;
+        text-decoration:none;
+        color:inherit;
+        display:grid;
+        grid-template-columns: 120px 2fr 1fr 1fr 1fr 100px;
+        align-items:center;
+        gap:16px;
+      }
+      .card:hover{
+        border-color:var(--accent);
+        transform:translateX(4px);
+        background:rgba(255,255,255,0.05);
+      }
+      .ticker-box{
+        font-family:"Space Grotesk",sans-serif;
+        font-size:22px;
+        font-weight:700;
+        color:var(--accent);
+      }
+      .name-box{
         display:flex;
         flex-direction:column;
-        min-height:calc(100vh - 240px);
       }
-      .card:before{
-        content:"";
-        position:absolute;
-        inset:-40% 30% auto -60%;
-        height:220px;
-        background:radial-gradient(closest-side, var(--glow), rgba(0,0,0,0));
-        opacity:0.7;
-        pointer-events:none;
-      }
-      .card h2{
-        font-family:"Space Grotesk",system-ui,sans-serif;
-        font-size:18px;
-        margin:0 0 8px;
-      }
-      .metrics{
-        display:grid;
-        grid-template-columns:repeat(2,minmax(0,1fr));
-        gap:10px;
-        margin-top:10px;
-      }
+      .name-box .name{ font-weight:500; font-size:15px; }
+      .name-box .reason{ color:var(--muted); font-size:12px; margin-top:4px; }
+      
       .metric{
-        padding:10px 12px;
-        border:1px solid var(--stroke);
-        border-radius:12px;
-        background:rgba(255,255,255,0.02);
+        display:flex;
+        flex-direction:column;
       }
-      .metric .label{
-        color:var(--muted);
-        font-size:12px;
-      }
-      .metric .value{
-        font-size:16px;
-        font-weight:600;
-        margin-top:4px;
-      }
-      .badge{
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-        padding:6px 10px;
-        border-radius:999px;
-        font-size:12px;
-        border:1px solid var(--stroke);
-        background:rgba(255,255,255,0.03);
-      }
-      .badge.buy{color:var(--accent)}
-      .badge.sell{color:var(--danger)}
-      .badge.neutral{color:var(--muted)}
-      .chart-stack{
-        display:grid;
-        grid-template-rows:2.2fr 1fr 1fr;
-        gap:12px;
-        flex:1;
-        margin-top:10px;
-      }
-      .chart{
-        width:100%;
-        height:100%;
-        border:1px solid var(--stroke);
-        border-radius:12px;
-        background:#0c1622;
-        position:relative;
-        overflow:hidden;
-      }
-      .chart-label{
-        position:absolute;
-        top:8px;
-        left:10px;
+      .metric .label{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
+      .metric .value{ font-weight:600; font-size:16px; margin-top:4px; }
+      
+      .val-up{ color:var(--accent); }
+      .val-down{ color:var(--danger); }
+      .val-neutral{ color:var(--muted); }
+
+      .badge-strat{
+        padding:4px 8px;
+        border-radius:6px;
         font-size:11px;
-        color:#a3b2c8;
-        letter-spacing:0.3px;
-        background:rgba(10,18,30,0.65);
-        padding:4px 8px;
-        border-radius:999px;
-        border:1px solid #1f2d3a;
-        z-index:3;
-        pointer-events:none;
+        font-weight:700;
+        background:rgba(255,255,255,0.05);
+        border:1px solid var(--stroke);
+        display:inline-block;
       }
-      .card-head{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        margin-bottom:8px;
-      }
-      .card-title{
-        font-family:"Space Grotesk",system-ui,sans-serif;
+      
+      .loading{
+        text-align:center;
+        padding:100px;
+        color:var(--muted);
         font-size:18px;
-        margin:0;
-        display:flex;
-        align-items:center;
-        gap:10px;
       }
-      .meta-inline{
+      
+      .header-row{
+        display:grid;
+        grid-template-columns: 120px 2fr 1fr 1fr 1fr 100px;
+        gap:16px;
+        padding:0 20px 10px;
         color:var(--muted);
         font-size:12px;
+        text-transform:uppercase;
+        letter-spacing:1px;
+        border-bottom:1px solid var(--stroke);
+        margin-bottom:10px;
       }
-      .chip-row{
-        display:flex;
-        flex-wrap:wrap;
-        gap:8px;
-        align-items:center;
-        font-size:12px;
-      }
-      .chip{
-        padding:4px 8px;
-        border-radius:999px;
-        border:1px solid var(--stroke);
-        background:rgba(255,255,255,0.03);
-        color:var(--muted);
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-      }
-      .chip.buy{
-        border-color:#14532d;
-        color:#bbf7d0;
-        background:rgba(34,197,94,0.12);
-      }
-      .chip.sell{
-        border-color:#7f1d1d;
-        color:#fecaca;
-        background:rgba(239,68,68,0.12);
-      }
-      .chip strong{ color:var(--ink); font-weight:600; }
-      .chip.dot:before{
-        content:"";
-        width:8px;
-        height:8px;
-        border-radius:50%;
-        display:inline-block;
-      }
-      .dot-ema-short:before{ background:#f97316; }
-      .dot-ema-mid:before{ background:#43aa8b; }
-      .dot-ema-long:before{ background:#4cc9f0; }
-      .legend-chip{
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-      }
-      .legend-dot{
-        width:8px;
-        height:8px;
-        border-radius:999px;
-        display:inline-block;
-      }
-      .legend-ema-21{ background:#f97316; }
-      .legend-ema-50{ background:#43aa8b; }
-      .legend-ema-200{ background:#4cc9f0; }
-      .legend-sup{ background:#94a3b8; }
-      .legend-res{ background:#f97316; }
-      .countdown{
-        font-size:0.9em;
-        color:var(--muted);
-        display:flex;
-        align-items:center;
-        gap:10px;
-      }
-      .refresh-btn{
-        border-radius:10px;
-        border:1px solid var(--stroke);
-        background:var(--panel);
-        color:var(--ink);
-        padding:6px 10px;
-        font-size:0.9em;
-        cursor:pointer;
-      }
-      .refresh-btn:hover{ border-color:#334155; }
-      .dot-sup:before{ background:#94a3b8; }
-      .dot-res:before{ background:#f97316; }
-      .dot-vol:before{ background:#22c55e; }
-      .dot-rsi:before{ background:#a855f7; }
-      .dot-macd:before{ background:#60a5fa; }
-      .empty{
-        padding:18px;
-        border:1px dashed var(--stroke);
-        border-radius:16px;
-        color:var(--muted);
-      }
-      @keyframes rise{
-        from{transform:translateY(12px); opacity:0}
-        to{transform:translateY(0); opacity:1}
-      }
-      @media (max-width:720px){
-        .hero{flex-direction:column; align-items:flex-start}
-        .title{font-size:28px}
-      }
-      @media (max-width:1100px){
-        .grid{grid-template-columns:repeat(2,minmax(0,1fr));}
-      }
-      @media (max-width:760px){
-        .grid{grid-template-columns:1fr;}
-        .wrap{padding:22px 16px 48px;}
+
+      @media (max-width:900px){
+        .header-row{ display:none; }
+        .card{
+            grid-template-columns: 1fr 1fr;
+            gap:12px;
+        }
+        .ticker-box{ grid-column: span 2; }
+        .name-box{ grid-column: span 2; margin-bottom:10px; }
       }
     </style>
   </head>
@@ -305,470 +145,100 @@
     <div class="wrap">
       <div class="hero">
         <div>
-          <div class="title">Triple Screen</div>
-          <div class="subtitle">Multi-timeframe view for one ticker</div>
+          <h1 class="title">Market Screener</h1>
+          <p class="subtitle">Dynamic Watchlist (Broad Scan candidates)</p>
         </div>
-        <div class="actions">
-          <input class="ticker-input" id="tickerInput" placeholder="AAPL.MX">
-          <button class="back" id="loadBtn">Load</button>
-          <div class="countdown">
-            <span>Next update: <strong id="nextRefresh">--</strong></span>
-            <button class="refresh-btn" id="refreshNow">Refresh</button>
-          </div>
-          <a class="back" href="u2_screener_FIJO_embedded.html">Back to screener</a>
-        </div>
+        <div id="statusPill" class="badge-strat">Syncing...</div>
       </div>
 
-      <div class="pill" id="metaLine">Waiting for ticker...</div>
-      <div style="height:14px"></div>
+      <div class="header-row">
+        <div>Ticker</div>
+        <div>Company / Reason</div>
+        <div>Price / Chg</div>
+        <div>RSI (1d)</div>
+        <div>ADX (1d)</div>
+        <div>Vol K</div>
+      </div>
 
-      <div class="grid" id="grid"></div>
+      <div class="grid" id="screenerGrid">
+        <div class="loading">Fetching candidates from DuckDB...</div>
+      </div>
     </div>
 
     <script>
-      const grid = document.getElementById("grid");
-      const metaLine = document.getElementById("metaLine");
-      const tickerInput = document.getElementById("tickerInput");
-      const loadBtn = document.getElementById("loadBtn");
-      const refreshBtn = document.getElementById("refreshNow");
-      const nextRefresh = document.getElementById("nextRefresh");
-      const REFRESH_MS = 60000;
-      let refreshDeadline = null;
-      let refreshTick = null;
-      let refreshTimer = null;
-      let activeCharts = [];
+      const grid = document.getElementById("screenerGrid");
+      const statusPill = document.getElementById("statusPill");
 
-      function getTickerFromUrl(){
-        const p = new URLSearchParams(location.search);
-        return p.get("ticker") || "";
-      }
-
-      function badgeClass(bias){
-        if (bias === "buy") return "buy";
-        if (bias === "sell") return "sell";
-        return "neutral";
-      }
-      function biasClass(bias){
-        if (bias === "buy") return "buy";
-        if (bias === "sell") return "sell";
-        return "neutral";
-      }
-      function phaseClass(phase){
-        if (phase === "U2") return "buy";
-        if (phase === "D4") return "sell";
-        return "neutral";
-      }
-      function forceClass(force){
-        if (force == null) return "neutral";
-        return Number(force) >= 0 ? "buy" : "sell";
-      }
-      function rsiClass(rsi){
-        if (rsi == null) return "neutral";
-        const v = Number(rsi);
-        if (v >= 70) return "sell";
-        if (v <= 30) return "buy";
-        return "neutral";
-      }
-      function adxClass(adx){
-        if (adx == null) return "neutral";
-        return Number(adx) >= 20 ? "buy" : "neutral";
-      }
-      function macdClass(macd){
-        if (macd == null) return "neutral";
-        return Number(macd) >= 0 ? "buy" : "sell";
-      }
-      function volClass(volRatio){
-        if (volRatio == null) return "neutral";
-        if (volRatio >= 1.5) return "buy";
-        if (volRatio <= 0.7) return "sell";
-        return "neutral";
-      }
-
-      function safe(v){
-        return (v === null || v === undefined || v === "") ? "—" : v;
-      }
-
-      function initChart(container, height, timeVisible){
-        return LightweightCharts.createChart(container, {
-          height,
-          layout: {
-            background: { color: "#0c1622" },
-            textColor: "#cbd5e1",
-            attribution: { visible: false, text: "" },
-            panes: {
-              separatorColor: "#1f2d3a",
-              separatorHoverColor: "#2a3a4b",
-              enableResize: false,
-            },
-          },
-          grid: { vertLines: { color: "#172636" }, horzLines: { color: "#172636" } },
-          rightPriceScale: { borderColor: "#1f2d3a" },
-          timeScale: { borderColor: "#1f2d3a", timeVisible: timeVisible, secondsVisible: false },
-          watermark: { visible: false },
-        });
-      }
-      function addSeries(chart, type, options, paneIndex){
-        if (typeof chart.addSeries === "function") {
-          if (paneIndex !== undefined && paneIndex !== null) {
-            return chart.addSeries(type, options, paneIndex);
+      async function loadScreener(){
+        try {
+          const resp = await fetch('/api/v2/screener');
+          if (!resp.ok) throw new Error("API Error");
+          const data = await resp.json();
+          
+          if (data.length === 0) {
+            grid.innerHTML = '<div class="loading">No candidates found in dynamic_watchlist. Check if Broad Scan has run.</div>';
+            statusPill.textContent = "Empty";
+            return;
           }
-          return chart.addSeries(type, options);
+
+          renderScreener(data);
+          statusPill.textContent = `Active: ${data.length}`;
+        } catch (err) {
+          grid.innerHTML = `<div class="loading">Error connecting to API: ${err.message}</div>`;
+          statusPill.textContent = "Offline";
         }
-        // v4 fallback
-        if (type === LightweightCharts.CandlestickSeries) return chart.addCandlestickSeries(options);
-        if (type === LightweightCharts.LineSeries) return chart.addLineSeries(options);
-        if (type === LightweightCharts.HistogramSeries) return chart.addHistogramSeries(options);
-        return chart.addLineSeries(options);
-      }
-      function formatAsOf(value){
-        if (!value) return "—";
-        const d = new Date(value);
-        if (Number.isNaN(d.getTime())) return value;
-        const parts = new Intl.DateTimeFormat(undefined, {
-          weekday: "short",
-          year: "numeric",
-          month: "short",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-          timeZoneName: "shortOffset",
-        }).formatToParts(d);
-        const get = (type) => (parts.find(p => p.type === type) || {}).value || "";
-        const weekday = get("weekday");
-        const month = get("month");
-        const day = get("day");
-        const year = get("year");
-        const hour = get("hour");
-        const minute = get("minute");
-        const tz = get("timeZoneName").replace("GMT", "GMT");
-        return `${weekday} ${month} ${day}, ${year} @ ${hour}:${minute} ${tz}`.trim();
-      }
-      function syncCharts(charts){
-        let syncing = false;
-        charts.forEach((chart) => {
-          chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-            if (syncing || !range) return;
-            syncing = true;
-            charts.forEach((other) => {
-              if (other !== chart) other.timeScale().setVisibleRange(range);
-            });
-            syncing = false;
-          });
-        });
       }
 
-      function disposeCharts(){
-        if (!activeCharts.length) return;
-        activeCharts.forEach((chart) => {
-          try {
-            chart.remove();
-          } catch (err) {
-            // ignore disposal errors
-          }
-        });
-        activeCharts = [];
-      }
-
-      function renderFrame(tf, data){
-        const card = document.createElement("div");
-        card.className = "card";
-        const tfLabel = `${tf.toUpperCase()} · ${formatAsOf(data.as_of)}`;
-        const biasText = safe(data.bias);
-        const phaseText = safe(data.phase);
-        const forceText = data.force == null ? "—" : Number(data.force).toFixed(1) + "%";
-        const emaMidLen = data.ema_mid_len == null ? "M" : `M${data.ema_mid_len}`;
-        const emaShortLen = data.ema_short_len == null ? "S" : `S${data.ema_short_len}`;
-        const emaLongLen = data.ema_long_len == null ? "L" : `L${data.ema_long_len}`;
-        const adxText = data.adx == null ? "—" : Number(data.adx).toFixed(1);
-        const rsiText = data.rsi == null ? "—" : Number(data.rsi).toFixed(1);
-        const macdText = data.macd_hist == null ? "—" : Number(data.macd_hist).toFixed(2);
-        const volSeries = (data.series && data.series.volume) || [];
-        const volValues = volSeries.map(v => v.value).filter(v => typeof v === "number");
-        const volAvg = volValues.length ? volValues.reduce((a,b)=>a+b,0)/volValues.length : null;
-        const volRatio = (volAvg && data.volume) ? (Number(data.volume) / volAvg) : null;
-        const volKpi = volRatio ? `x${volRatio.toFixed(2)}` : "—";
-
-        card.innerHTML = `
-          <div class="card-head">
-            <div class="card-title">${tfLabel}</div>
-            <div class="badge ${badgeClass(data.bias)}">bias: ${biasText}</div>
-          </div>
-          <div class="chip-row">
-            <span class="chip ${biasClass(data.bias)}"><strong>Bias</strong> ${biasText}</span>
-            <span class="chip ${phaseClass(data.phase)}"><strong>Phase</strong> ${phaseText}</span>
-            <span class="chip ${forceClass(data.force)}"><strong>Force</strong> ${forceText}</span>
-            <span class="chip ${macdClass(data.macd_hist)}"><strong>MACDh</strong> ${macdText}</span>
-            <span class="chip ${rsiClass(data.rsi)}"><strong>RSI</strong> ${rsiText}</span>
-            <span class="chip ${adxClass(data.adx)}"><strong>ADX</strong> ${adxText}</span>
-            <span class="chip ${volClass(volRatio)}"><strong>Vol K</strong> ${volKpi}</span>
-          </div>
-          <div class="chart-stack">
-            <div class="chart" data-role="price">
-              <div class="chart-label">
-                Price · EMA 21/50/200
-                <span class="legend-chip"><span class="legend-dot legend-ema-21"></span>21</span>
-                <span class="legend-chip"><span class="legend-dot legend-ema-50"></span>50</span>
-                <span class="legend-chip"><span class="legend-dot legend-ema-200"></span>200</span>
-                ·
-                <span class="legend-chip"><span class="legend-dot legend-sup"></span>Support</span>
-                <span class="legend-chip"><span class="legend-dot legend-res"></span>Resistance</span>
-                · Volume
-              </div>
-            </div>
-            <div class="chart" data-role="rsi">
-              <div class="chart-label">RSI</div>
-            </div>
-            <div class="chart" data-role="macd">
-              <div class="chart-label">MACDh (hist)</div>
-            </div>
-          </div>
-        `;
-        grid.appendChild(card);
-        const priceEl = card.querySelector('[data-role="price"]');
-        const rsiEl = card.querySelector('[data-role="rsi"]');
-        const macdEl = card.querySelector('[data-role="macd"]');
-
-        const candles = (data.series && data.series.candles) || [];
-        const emaMid = (data.series && data.series.ema_mid) || [];
-        const emaShort = (data.series && data.series.ema_short) || [];
-        const emaLong = (data.series && data.series.ema_long) || [];
-        const support = (data.series && data.series.support) || [];
-        const resistance = (data.series && data.series.resistance) || [];
-        const volumeSeries = (data.series && data.series.volume) || [];
-        const rsiSeries = (data.series && data.series.rsi) || [];
-        const macdHist = (data.series && data.series.macd_hist) || [];
-        const macdSignal = (data.series && data.series.macd_signal) || [];
-        const earningsDates = Array.isArray(data.earnings_dates) ? data.earnings_dates : [];
-
-        requestAnimationFrame(() => {
-          const intraday = tf !== "1d";
-          const priceChart = initChart(priceEl, Math.max(260, priceEl.clientHeight), intraday);
-          const rsiChart = initChart(rsiEl, Math.max(140, rsiEl.clientHeight), intraday);
-          const macdChart = initChart(macdEl, Math.max(140, macdEl.clientHeight), intraday);
-          activeCharts.push(priceChart, rsiChart, macdChart);
-          const supportsPanes = typeof priceChart.addSeries === "function";
-
-          let paneId = null;
-          if (typeof priceChart.addPane === "function") {
-            const pane = priceChart.addPane();
-            paneId = pane && pane.id ? pane.id : pane;
-          }
-
-          let candleSeries = null;
-          if (candles.length) {
-            candleSeries = addSeries(priceChart, LightweightCharts.CandlestickSeries, {
-              upColor: "#3ddc97",
-              downColor: "#ff6b6b",
-              borderVisible: false,
-              wickUpColor: "#3ddc97",
-              wickDownColor: "#ff6b6b",
-              priceLineVisible: true,
-            }, 0);
-            candleSeries.setData(candles);
-          }
-
-          if (volumeSeries.length) {
-            const volumeColored = volumeSeries.map((p, i) => {
-              const up = candles[i] ? candles[i].close >= candles[i].open : (p.value >= 0);
-              return {
-                time: p.time,
-                value: p.value,
-                color: up ? "#22c55e" : "#f97316",
-              };
-            });
-            const volumeOptions = {
-              color: "#475569",
-              priceFormat: { type: "volume" },
-            };
-            if (supportsPanes) {
-              addSeries(priceChart, LightweightCharts.HistogramSeries, volumeOptions, 1).setData(volumeColored);
-              if (priceChart.panes) {
-                const panes = priceChart.panes();
-                if (panes && panes.length >= 2 && panes[0].setHeight && panes[1].setHeight) {
-                  const total = priceEl.clientHeight || 300;
-                  panes[0].setHeight(Math.floor(total * 0.74));
-                  panes[1].setHeight(Math.floor(total * 0.26));
-                }
-              }
-            } else {
-              priceChart.priceScale('right').applyOptions({
-                scaleMargins: { top: 0.08, bottom: 0.24 }
-              });
-              priceChart.priceScale('volume').applyOptions({
-                scaleMargins: { top: 0.8, bottom: 0 }
-              });
-              volumeOptions.priceScaleId = "volume";
-              addSeries(priceChart, LightweightCharts.HistogramSeries, volumeOptions).setData(volumeColored);
-            }
-          }
-
-          if (emaShort.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#43aa8b", lineWidth: 2, priceLineVisible: false }).setData(emaShort);
-          }
-          if (emaMid.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#f97316", lineWidth: 2, priceLineVisible: false }).setData(emaMid);
-          }
-          if (emaLong.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#4cc9f0", lineWidth: 2, priceLineVisible: false }).setData(emaLong);
-          }
-          if (support.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#94a3b8", lineWidth: 1, lineStyle: 2, priceLineVisible: false }).setData(support);
-          }
-          if (resistance.length) {
-            addSeries(priceChart, LightweightCharts.LineSeries, { color: "#f97316", lineWidth: 1, lineStyle: 2, priceLineVisible: false }).setData(resistance);
-          }
-
-          if (tf === "1d" && candleSeries && earningsDates.length) {
-            const markers = earningsDates
-              .map((d) => {
-                const dt = new Date(d);
-                if (Number.isNaN(dt.getTime())) return null;
-                return {
-                  time: Math.floor(dt.getTime() / 1000),
-                  position: "aboveBar",
-                  color: "#eab308",
-                  shape: "diamond",
-                  text: "E",
-                };
-              })
-              .filter(Boolean);
-            if (markers.length) {
-              candleSeries.setMarkers(markers);
-            }
-          }
-
-          if (rsiSeries.length) {
-            const rsiLine = addSeries(rsiChart, LightweightCharts.LineSeries, { color: "#a855f7", lineWidth: 2, priceLineVisible: false });
-            rsiLine.setData(rsiSeries);
-            rsiLine.createPriceLine({ price: 70, color: "#f97316", lineWidth: 1, lineStyle: 2, axisLabelVisible: true });
-            rsiLine.createPriceLine({ price: 30, color: "#22c55e", lineWidth: 1, lineStyle: 2, axisLabelVisible: true });
-          }
-          if (macdHist.length) {
-            const macdColored = macdHist.map(p => ({
-              time: p.time,
-              value: p.value,
-              color: p.value >= 0 ? "#22c55e" : "#ef4444",
-            }));
-            addSeries(macdChart, LightweightCharts.HistogramSeries, { color: "#60a5fa", priceLineVisible: false }).setData(macdColored);
-          }
-
-          syncCharts([priceChart, rsiChart, macdChart]);
-        });
-      }
-
-      function renderEmpty(msg){
-        disposeCharts();
+      function renderScreener(items){
         grid.innerHTML = "";
-        const box = document.createElement("div");
-        box.className = "empty";
-        box.textContent = msg;
-        grid.appendChild(box);
-      }
-
-      async function fetchDetails(ticker){
-        // V2 API Fetch
-        const url = `/api/v2/ticker/${encodeURIComponent(ticker)}`;
-        const resp = await fetch(url);
-        if (!resp.ok) {
-            const err = await resp.json();
-            throw new Error(err.detail || "Not found");
-        }
-        return resp.json();
-      }
-
-      async function loadTicker(ticker){
-        if (!ticker) {
-          renderEmpty("Enter a ticker to load details.");
-          return;
-        }
-        try{
-          const payload = await fetchDetails(ticker);
-          disposeCharts();
-          grid.innerHTML = "";
-          const updatedPretty = payload.updated_at ? formatAsOf(payload.updated_at) : "—";
-          const nameText = payload.name ? ` · ${payload.name}` : "";
-          metaLine.textContent = `Ticker: ${payload.ticker}${nameText} | Updated: ${updatedPretty}`;
-          resetRefreshCountdown(payload.updated_at);
-          const tfs = payload.timeframes || {};
-          const order = ["1d","1h","15m"];
-          order.forEach(tf => {
-            if (tfs[tf]) renderFrame(tf, tfs[tf]);
-          });
-          if (!order.some(tf => tfs[tf])) {
-            renderEmpty("No timeframe data available.");
-          }
-        }catch(err){
-          renderEmpty("No detail file found for this ticker.");
-        }
-      }
-
-      loadBtn.addEventListener("click", () => {
-        const t = tickerInput.value.trim();
-        if (t) location.search = `?ticker=${encodeURIComponent(t)}`;
-      });
-      tickerInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          loadBtn.click();
-        }
-      });
-
-      const initial = getTickerFromUrl();
-      if (initial) {
-        tickerInput.value = initial;
-        loadTicker(initial);
-        startRefreshCycle();
-      } else {
-        renderEmpty("Enter a ticker to load details.");
-      }
-
-      if (refreshBtn) {
-        refreshBtn.addEventListener("click", () => {
-          const t = tickerInput.value.trim() || getTickerFromUrl();
-          if (t) {
-            loadTicker(t);
-            resetRefreshCountdown();
-          }
+        items.forEach(item => {
+          const chg = item.chg_pct || 0;
+          const chgClass = chg >= 0 ? 'val-up' : 'val-down';
+          const rsiVal = item.rsi ? item.rsi.toFixed(1) : '—';
+          const adxVal = item.adx ? item.adx.toFixed(1) : '—';
+          const volVal = item.vol_k ? `x${item.vol_k.toFixed(2)}` : '—';
+          
+          const card = document.createElement("a");
+          card.className = "card";
+          card.href = `triple_screen.html?ticker=${item.ticker}`;
+          
+          card.innerHTML = `
+            <div class="ticker-box">${item.ticker}</div>
+            <div class="name-box">
+                <span class="name">${item.name || item.ticker}</span>
+                <span class="reason"><span class="badge-strat">${item.reason}</span> Added: ${item.added_at.split(' ')[0]}</span>
+            </div>
+            <div class="metric">
+                <span class="label">Price</span>
+                <span class="value">${item.close ? item.close.toFixed(2) : '—'} <span class="${chgClass}" style="font-size:12px">${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%</span></span>
+            </div>
+            <div class="metric">
+                <span class="label">RSI (14)</span>
+                <span class="value ${getRsiClass(item.rsi)}">${rsiVal}</span>
+            </div>
+            <div class="metric">
+                <span class="label">ADX</span>
+                <span class="value ${item.adx > 25 ? 'val-up' : ''}">${adxVal}</span>
+            </div>
+            <div class="metric">
+                <span class="label">Volume</span>
+                <span class="value ${item.vol_k > 1.5 ? 'val-up' : ''}">${volVal}</span>
+            </div>
+          `;
+          grid.appendChild(card);
         });
       }
 
-      window.addEventListener("beforeunload", () => {
-        disposeCharts();
-      });
-
-      function startRefreshCycle(){
-        resetRefreshCountdown(null);
-        if (refreshTimer) clearInterval(refreshTimer);
-        refreshTimer = setInterval(() => {
-          const t = tickerInput.value.trim() || getTickerFromUrl();
-          if (t) loadTicker(t);
-        }, REFRESH_MS);
+      function getRsiClass(val){
+        if (!val) return '';
+        if (val >= 70) return 'val-down';
+        if (val <= 30) return 'val-up';
+        return '';
       }
 
-      function resetRefreshCountdown(updatedAt){
-        if (updatedAt) {
-          const d = new Date(updatedAt);
-          refreshDeadline = Number.isNaN(d.getTime()) ? Date.now() + REFRESH_MS : d.getTime() + REFRESH_MS;
-        } else {
-          refreshDeadline = Date.now() + REFRESH_MS;
-        }
-        updateCountdown();
-        if (refreshTick) clearInterval(refreshTick);
-        refreshTick = setInterval(updateCountdown, 1000);
-      }
-
-      function updateCountdown(){
-        if (!nextRefresh || refreshDeadline == null) return;
-        const ms = refreshDeadline - Date.now();
-        if (ms <= 0) {
-          nextRefresh.textContent = "0s";
-          return;
-        }
-        const total = Math.ceil(ms / 1000);
-        const mins = Math.floor(total / 60);
-        const secs = total % 60;
-        nextRefresh.textContent = mins ? `${mins}m ${String(secs).padStart(2,"0")}s` : `${secs}s`;
-      }
+      loadScreener();
+      // Refresh cada 5 minutos
+      setInterval(loadScreener, 300000);
     </script>
   </body>
 </html>

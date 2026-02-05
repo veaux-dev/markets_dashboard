@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from pathlib import Path
 import logging
+from datetime import timezone
 from svc_v2.config_loader import load_settings
 
 # Configuración
@@ -183,7 +184,11 @@ def get_ticker_details(ticker: str):
         
         seen_ts = set()
         for _, row in df.iterrows():
-            ts = int(row['timestamp'].timestamp()) # Unix timestamp
+            # Asumimos que la DB guarda UTC naive.
+            # Lo hacemos timezone-aware (UTC) antes de pedir el timestamp.
+            # Esto evita que .timestamp() use la zona horaria local del servidor.
+            ts_obj = row['timestamp'].replace(tzinfo=timezone.utc)
+            ts = int(ts_obj.timestamp()) # Unix timestamp
             
             # 1. Evitar duplicados de tiempo (rompen Lightweight Charts)
             if ts in seen_ts:
@@ -212,8 +217,13 @@ def get_ticker_details(ticker: str):
             if pd.notnull(row['ema_200']): ema_long.append({"time": ts, "value": row['ema_200']})
 
         # Payload del timeframe
+        # as_of: Convertimos a ISO format y agregamos Z para que JS sepa que es UTC
+        as_of_str = last_row['timestamp'].isoformat()
+        if not as_of_str.endswith("Z"):
+            as_of_str += "Z"
+
         tf_data = {
-            "as_of": str(last_row['timestamp']),
+            "as_of": as_of_str,
             "bias": bias,
             "phase": "U2" if bias == "buy" else "D4", # Placeholder lógica simple
             "force": last_row.get('chg_pct'), 

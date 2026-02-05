@@ -142,6 +142,10 @@ class Collector:
                  if isinstance(df_stacked['date'].dtype, pd.DatetimeTZDtype):
                      df_stacked['date'] = df_stacked['date'].dt.tz_convert("UTC").dt.tz_localize(None)
 
+                 # FIX DUPLICADOS 1D: Normalizar a medianoche
+                 if timeframe == '1d':
+                     df_stacked['date'] = df_stacked['date'].dt.normalize()
+
             # Upsert masivo
             if 'date' in df_stacked.columns:
                 self.db.upsert_ohlcv(df_stacked, timeframe)
@@ -168,6 +172,10 @@ class Collector:
         
         if 'date' in df.columns and isinstance(df['date'].dtype, pd.DatetimeTZDtype):
              df['date'] = df['date'].dt.tz_convert("UTC").dt.tz_localize(None)
+
+        # FIX DUPLICADOS 1D: Normalizar a medianoche
+        if timeframe == '1d' and 'date' in df.columns:
+             df['date'] = df['date'].dt.normalize()
         
         if 'date' in df.columns:
             self.db.upsert_ohlcv(df, timeframe)
