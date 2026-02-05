@@ -79,11 +79,15 @@ def main():
                     
                     # Fix TZ
                     if 'date' in df.columns:
-                         # check if tz aware
-                         if pd.api.types.is_datetime64tz_dtype(df['date']):
+                         # check if tz aware (modern pandas check)
+                         if isinstance(df['date'].dtype, pd.DatetimeTZDtype):
                              df['date'] = df['date'].dt.tz_convert("UTC").dt.tz_localize(None)
 
-                    # Upsert directo
+                    # Upsert directo - Verificar columnas críticas
+                    if 'date' not in df.columns:
+                        print(f"      ⚠️ Batch {i} saltado: No se encontró columna 'date' (posible fallo de descarga)")
+                        continue
+
                     db.upsert_ohlcv(df, tf)
                     print(f"      ✅ Guardado en DB ({len(df)} filas).")
                     

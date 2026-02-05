@@ -138,12 +138,15 @@ class Collector:
             
             # Convertir TZ a naive UTC
             if 'date' in df_stacked.columns:
-                 # Check dtype
-                 if pd.api.types.is_datetime64tz_dtype(df_stacked['date']):
+                 # Check dtype (Modern Pandas)
+                 if isinstance(df_stacked['date'].dtype, pd.DatetimeTZDtype):
                      df_stacked['date'] = df_stacked['date'].dt.tz_convert("UTC").dt.tz_localize(None)
 
             # Upsert masivo
-            self.db.upsert_ohlcv(df_stacked, timeframe)
+            if 'date' in df_stacked.columns:
+                self.db.upsert_ohlcv(df_stacked, timeframe)
+            else:
+                logging.error("❌ Batch ignorado: No se encontró columna 'date' tras procesar.")
 
         except Exception as e:
             logging.error(f"❌ Error batch download: {e}")
@@ -162,10 +165,14 @@ class Collector:
         df.columns = new_cols
 
         if 'datetime' in df.columns: df.rename(columns={'datetime': 'date'}, inplace=True)
-        if pd.api.types.is_datetime64tz_dtype(df['date']):
+        
+        if 'date' in df.columns and isinstance(df['date'].dtype, pd.DatetimeTZDtype):
              df['date'] = df['date'].dt.tz_convert("UTC").dt.tz_localize(None)
         
-        self.db.upsert_ohlcv(df, timeframe)
+        if 'date' in df.columns:
+            self.db.upsert_ohlcv(df, timeframe)
+        else:
+            logging.warning("⚠️ Ticker único ignorado: Falta columna 'date'")
 
     def _map_tf_to_yf(self, tf: str) -> str:
         map_ = { "1d": "1d", "1h": "1h", "15m": "15m", "5m": "5m" }
