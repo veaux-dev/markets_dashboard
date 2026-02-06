@@ -128,9 +128,9 @@ def get_screener_results():
             manual_subquery = f"""
                 UNION
                 -- Tickers manuales que NO están en la dynamic_watchlist
-                SELECT column1 as ticker, NULL as reason, now() as added_at
-                FROM (VALUES {manual_tickers_sql})
-                WHERE column1 NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
+                SELECT ticker, NULL as reason, now() as added_at
+                FROM (VALUES {manual_tickers_sql}) AS t(ticker)
+                WHERE ticker NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
             """
         
         query = f"""
