@@ -10,6 +10,7 @@ from pathlib import Path
 import logging
 import subprocess
 import sys
+import os
 from datetime import timezone
 from svc_v2.config_loader import load_settings
 
@@ -31,6 +32,11 @@ app.add_middleware(
 )
 
 def get_db_path():
+    # Permitir override via Env Var para testeo local
+    override = os.environ.get("DB_PATH_OVERRIDE")
+    if override:
+        return override
+        
     cfg = load_settings()
     return f"data/{cfg.system.db_filename}"
 
@@ -168,20 +174,39 @@ def get_screener_results():
         if df.empty:
             return []
         
-            # Flags de pertenencia
-            df['is_holding'] = df['ticker'].isin(holdings)
-            df['is_favourite'] = df['ticker'].isin(manual_watchlist)
-            
-            # FILTRO: Eliminar los que solo son SELL_STRENGTH y no son ni holding ni fav
-            # (Discovery de ventas masivas no nos interesa si no tenemos el activo)
-            mask_to_remove = (df['strategies'] == 'SELL_STRENGTH') & (~df['is_holding']) & (~df['is_favourite'])
-            df = df[~mask_to_remove]
-            
-            # Reemplazar NaN con None
-            df = df.replace({np.nan: None})        
-        # Convertir fechas
-        df['added_at'] = df['added_at'].astype(str)
-        return df.to_dict(orient="records")
+                # Flags de pertenencia
+        
+                df['is_holding'] = df['ticker'].isin(holdings)
+        
+                df['is_favourite'] = df['ticker'].isin(manual_watchlist)
+        
+                
+        
+                # FILTRO: Eliminar los que solo son SELL_STRENGTH y no son ni holding ni fav
+        
+                mask_to_remove = (df['strategies'] == 'SELL_STRENGTH') & (~df['is_holding']) & (~df['is_favourite'])
+        
+                df = df[~mask_to_remove]
+        
+                
+        
+                # LIMPIEZA NUCLEAR PARA JSON:
+        
+                # 1. Convertir Infinitos a NaN
+        
+                df = df.replace([np.inf, -np.inf], np.nan)
+        
+                # 2. Convertir todos los tipos de nulos (NaN, NaT, None) a None (null en JSON)
+        
+                df = df.where(pd.notnull(df), None)
+        
+                
+        
+                # Convertir fechas
+        
+                df['added_at'] = df['added_at'].astype(str)
+        
+                return df.to_dict(orient="records")
     except Exception as e:
         logging.error(f"Error en get_screener_results: {e}")
         raise HTTPException(status_code=500, detail=str(e))
