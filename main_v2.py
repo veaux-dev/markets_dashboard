@@ -74,21 +74,34 @@ class Daemon:
 
     def bootstrap_db(self) -> bool:
         """
-        Check if DB exists. If not, create it, import backup, and return True
-        to trigger initial scans.
+        Check if DB is missing or empty. If so, create/fill it from backup.
         """
         cfg = load_settings()
         db_path = Path("data") / cfg.system.db_filename
         csv_path = Path("data/backup_holdings.csv")
         
+        should_import = not db_path.exists()
+        
+        # Si el archivo existe pero es muy pequeño, o queremos validar contenido
         if db_path.exists():
+            try:
+                import duckdb
+                with duckdb.connect(str(db_path), read_only=True) as con:
+                    res = con.execute("SELECT count(*) FROM portfolio_transactions").fetchone()
+                    if res[0] == 0:
+                        logging.info("Empty database detected. Triggering ledger import.")
+                        should_import = True
+            except Exception:
+                # Si falla (ej. tabla no existe), re-inicializamos
+                should_import = True
+
+        if not should_import:
             return False
 
-        logging.warning("⚠️ DB Missing. Starting Bootstrap sequence...")
+        logging.warning("⚠️ DB Missing or Empty. Starting Bootstrap sequence...")
         
         try:
             # 1. Init Schema (Using Database Class)
-            logging.info("🛠️ Initializing Database Schema...")
             from svc_v2.db import Database
             import pandas as pd
             
@@ -102,7 +115,6 @@ class Daemon:
                     df = pd.read_csv(csv_path)
                     count = 0
                     for _, row in df.iterrows():
-                        # Map CSV columns to DB args safely
                         db.add_transaction(
                             ticker=str(row['ticker']),
                             side=str(row['side']),
@@ -116,14 +128,9 @@ class Daemon:
                     logging.info(f"✅ Backup imported ({count} txns).")
                 except Exception as e:
                     logging.error(f"❌ Failed to import backup: {e}")
-            else:
-                 logging.warning("⚠️ No backup CSV found. Starting with empty portfolio.")
             
-            # 3. CRITICAL: Close connection and release Singleton to avoid Lock in Subprocesses
             db.close()
             Database._instance = None
-            logging.info("🔓 DB Connection closed for subprocesses.")
-            
             return True
 
         except Exception as e:
