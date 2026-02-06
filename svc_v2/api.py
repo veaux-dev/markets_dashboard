@@ -320,37 +320,44 @@ def get_ticker_details(ticker: str):
         
         seen_ts = set()
         for _, row in df.iterrows():
-            # Asumimos que la DB guarda UTC naive.
-            # Lo hacemos timezone-aware (UTC) antes de pedir el timestamp.
-            # Esto evita que .timestamp() use la zona horaria local del servidor.
-            ts_obj = row['timestamp'].replace(tzinfo=timezone.utc)
-            ts = int(ts_obj.timestamp()) # Unix timestamp
+            # Manejo de tiempo según timeframe
+            if tf == '1d':
+                # Para 1D, usamos string YYYY-MM-DD para evitar problemas de timezone
+                # DuckDB timestamp -> Date string
+                time_val = row['timestamp'].strftime('%Y-%m-%d')
+                # Clave única
+                ts_check = time_val
+            else:
+                # Para intradía, usamos UNIX timestamp UTC
+                ts_obj = row['timestamp'].replace(tzinfo=timezone.utc)
+                time_val = int(ts_obj.timestamp())
+                ts_check = time_val
             
-            # 1. Evitar duplicados de tiempo (rompen Lightweight Charts)
-            if ts in seen_ts:
+            # 1. Evitar duplicados de tiempo
+            if ts_check in seen_ts:
                 continue
             
             # 2. Filtrar velas rotas (faltan precios)
             if row['open'] is None or row['close'] is None or row['high'] is None or row['low'] is None:
                 continue
 
-            seen_ts.add(ts)
+            seen_ts.add(ts_check)
             
             candles.append({
-                "time": ts,
+                "time": time_val,
                 "open": row['open'],
                 "high": row['high'],
                 "low": row['low'],
                 "close": row['close']
             })
-            vol_series.append({"time": ts, "value": row['volume']})
+            vol_series.append({"time": time_val, "value": row['volume']})
             
-            if pd.notnull(row['rsi']): rsi_series.append({"time": ts, "value": row['rsi']})
-            if pd.notnull(row['macd_hist']): macd_series.append({"time": ts, "value": row['macd_hist']})
+            if pd.notnull(row['rsi']): rsi_series.append({"time": time_val, "value": row['rsi']})
+            if pd.notnull(row['macd_hist']): macd_series.append({"time": time_val, "value": row['macd_hist']})
             
-            if pd.notnull(row['ema_20']): ema_short.append({"time": ts, "value": row['ema_20']})
-            if pd.notnull(row['ema_50']): ema_mid.append({"time": ts, "value": row['ema_50']})
-            if pd.notnull(row['ema_200']): ema_long.append({"time": ts, "value": row['ema_200']})
+            if pd.notnull(row['ema_20']): ema_short.append({"time": time_val, "value": row['ema_20']})
+            if pd.notnull(row['ema_50']): ema_mid.append({"time": time_val, "value": row['ema_50']})
+            if pd.notnull(row['ema_200']): ema_long.append({"time": time_val, "value": row['ema_200']})
 
         # Payload del timeframe
         # as_of: Convertimos a ISO format y agregamos Z para que JS sepa que es UTC

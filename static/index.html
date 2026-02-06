@@ -249,8 +249,8 @@
 
       let currentData = [];
       let currentPortfolio = [];
-      let sortCol = 'added_at';
-      let sortAsc = false;
+      let sortCol = 'strategies'; // Default sort by signal
+      let sortAsc = false; // Descending (signals first)
 
       async function loadDashboard() {
           loadScreener();
@@ -274,6 +274,10 @@
             return;
         }
         
+        let totalInvested = 0;
+        let totalCurrent = 0;
+        let totalPnL = 0;
+
         let html = `
           <table>
             <thead>
@@ -282,6 +286,7 @@
                 <th>Qty</th>
                 <th>Avg Price</th>
                 <th>Current</th>
+                <th>Invested</th>
                 <th>P&L %</th>
                 <th>P&L $</th>
               </tr>
@@ -290,21 +295,45 @@
         `;
         
         currentPortfolio.forEach(item => {
-          const pnlPct = item.pnl_pct || 0;
-          const pnlVal = item.pnl_val || 0;
+          const qty = item.qty || 0;
+          const avg = item.avg_buy_price || 0;
+          const curr = item.current_price || 0;
+          const invested = qty * avg;
+          const currentVal = qty * curr;
+          const pnlVal = currentVal - invested;
+          const pnlPct = invested > 0 ? (pnlVal / invested * 100) : 0;
+          
+          totalInvested += invested;
+          totalCurrent += currentVal;
+          totalPnL += pnlVal;
+
           const pnlClass = pnlPct >= 0 ? 'val-up' : 'val-down';
           
           html += `
             <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
               <td class="ticker-cell">${item.ticker} <span class="meta-cell" style="font-weight:400; font-size:11px">${item.name || ''}</span></td>
-              <td>${item.qty}</td>
-              <td class="meta-cell">${item.avg_buy_price ? item.avg_buy_price.toFixed(2) : '—'}</td>
-              <td style="font-weight:600">${item.current_price ? item.current_price.toFixed(2) : '—'}</td>
+              <td>${qty}</td>
+              <td class="meta-cell">$${avg.toFixed(2)}</td>
+              <td style="font-weight:600">$${curr.toFixed(2)}</td>
+              <td>$${invested.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
               <td class="${pnlClass}" style="font-weight:700">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</td>
-              <td class="${pnlClass}">${pnlVal >= 0 ? '+' : ''}${pnlVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+              <td class="${pnlClass}">${pnlVal >= 0 ? '+' : ''}$${pnlVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
             </tr>
           `;
         });
+        
+        // Footer con Totales
+        const totalClass = totalPnL >= 0 ? 'val-up' : 'val-down';
+        const totalPct = totalInvested > 0 ? (totalPnL / totalInvested * 100) : 0;
+
+        html += `
+            <tr style="border-top: 2px solid var(--stroke); background: rgba(255,255,255,0.05); font-weight: 700;">
+                <td colspan="4" style="text-align: right; padding-right: 20px;">TOTAL PORTFOLIO</td>
+                <td>$${totalInvested.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                <td class="${totalClass}">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%</td>
+                <td class="${totalClass}">${totalPnL >= 0 ? '+' : ''}$${totalPnL.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+            </tr>
+        `;
         
         html += `</tbody></table>`;
         portfolioContainer.innerHTML = html;
