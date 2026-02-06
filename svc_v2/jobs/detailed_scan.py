@@ -69,7 +69,8 @@ def main():
         col.sync_tickers(vip_tickers, [tf])
         
         # B) Analyze
-        alz.analyze_tickers(vip_tickers, [tf], force_full=False)
+        force_full = os.environ.get("FORCE_FULL_SCAN") == "1"
+        alz.analyze_tickers(vip_tickers, [tf], force_full=force_full)
         
         # C) Screen
         print(f"   🔎 Resultados:")

@@ -70,8 +70,12 @@ def main():
     col.sync_tickers(full_universe, timeframes)
 
     # 6. Analyze Data (Analyzer)
-    # Force full=False para ser incrementales y rápidos
-    alz.analyze_tickers(full_universe, timeframes, force_full=False)
+    # Force full si se solicita via Env Var (Bootstrap)
+    force_full = os.environ.get("FORCE_FULL_SCAN") == "1"
+    if force_full:
+        logging.info("🚀 FORCING FULL ANALYSIS (Bootstrap Mode)...")
+    
+    alz.analyze_tickers(full_universe, timeframes, force_full=force_full)
 
     # 7. Execute Screeners (The Funnel)
     print("\n🔍 Ejecutando Filtros Tácticos...")

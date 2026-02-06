@@ -246,8 +246,11 @@ class Daemon:
         # 3. Initial Scans
         if was_fresh_install:
             logging.info("🆕 Fresh Install detected. Running sequential full scans...")
+            # Set environment variable to force full calculation in the subprocesses
+            os.environ["FORCE_FULL_SCAN"] = "1"
             self.run_job_subprocess("svc_v2.jobs.broad_scan", "Broad Scan (Bootstrap)")
             self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan (Bootstrap)")
+            del os.environ["FORCE_FULL_SCAN"]
         else:
             # Normal startup: check if we missed a scheduled run
             self.check_staleness()

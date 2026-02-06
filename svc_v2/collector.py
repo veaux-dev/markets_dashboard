@@ -20,10 +20,13 @@ class Collector:
             logging.warning("⚠️ Lista de tickers vacía.")
             return
 
-        logging.info(f"📥 Iniciando Sync Batch de {len(tickers)} tickers en {timeframes}...")
+        logging.info(f"📥 Iniciando Sync de {len(tickers)} activos en {timeframes}...")
+        start_global = time.time()
 
         for tf in timeframes:
             self._sync_timeframe_batched(tickers, tf)
+        
+        logging.info(f"✅ Sync Finalizado. Tiempo total: {time.time() - start_global:.2f}s")
 
     def _sync_timeframe_batched(self, tickers: List[str], timeframe: str):
         yf_interval = self._map_tf_to_yf(timeframe)
@@ -31,11 +34,9 @@ class Collector:
             logging.error(f"❌ Timeframe no soportado: {timeframe}")
             return
 
-        # 1. Analizar estado actual de la DB para agrupar
-        # Query masiva para obtener max(timestamp) de todos los tickers solicitados
-        logging.info(f"   🔎 Analizando fechas existentes para {timeframe}...")
+        # 1. Analizar estado actual de la DB
+        logging.info(f"   🔎 Buscando fechas existentes para [{timeframe}]...")
         
-        # Formatear lista para SQL
         tickers_sql = ",".join([f"'{t}'" for t in tickers])
         q = f"""
             SELECT ticker, MAX(timestamp) as last_ts
@@ -50,48 +51,55 @@ class Collector:
             existing_dates = {}
 
         # 2. Agrupar por Start Date
-        groups = {} # Key: start_date_str, Value: list(tickers)
+        groups = {}
+        overlap = timedelta(days=5) 
         
-        # Definir defaults
-        overlap = timedelta(days=5) # Buffer seguro
-        
-        # Fecha default para nuevos (Full History)
         default_start = "2000-01-01"
         if yf_interval in ["60m", "1h", "30m", "15m"]: 
-            # Intradía tiene límite en YF
-            default_start = (datetime.now() - timedelta(days=59)).strftime('%Y-%m-%d') # Safe 60d limit for 15m
+            default_start = (datetime.now() - timedelta(days=59)).strftime('%Y-%m-%d')
             if yf_interval in ["60m", "1h"]:
-                 default_start = (datetime.now() - timedelta(days=720)).strftime('%Y-%m-%d') # Safe 2y limit
+                 default_start = (datetime.now() - timedelta(days=720)).strftime('%Y-%m-%d')
 
         for t in tickers:
             last_ts = existing_dates.get(t)
             if last_ts:
-                # Incremental
                 s_date = (pd.to_datetime(last_ts) - overlap).strftime('%Y-%m-%d')
             else:
-                # Full
                 s_date = default_start
             
             if s_date not in groups:
                 groups[s_date] = []
             groups[s_date].append(t)
 
-        logging.info(f"   ⚡ Se formaron {len(groups)} grupos de descarga.")
+        logging.info(f"   ⚡ {len(groups)} grupos de descarga detectados.")
 
         # 3. Descargar por Grupo
         for start_date, batch_tickers in groups.items():
-            logging.info(f"      -> Descargando {len(batch_tickers)} tickers desde {start_date}...")
-            self._download_and_save_batch(batch_tickers, start_date, yf_interval, timeframe)
+            # CHUNKING (Smart Batching): Evita saturar YFinance y URLs demasiado largas
+            # 50 tickers por llamada es el sweet spot para estabilidad.
+            chunk_size = 50
+            total_chunks = (len(batch_tickers) - 1) // chunk_size + 1
+            
+            logging.info(f"      📡 Descargando {len(batch_tickers)} activos desde {start_date} ({total_chunks} chunks)...")
+            
+            for i in range(0, len(batch_tickers), chunk_size):
+                chunk = batch_tickers[i:i + chunk_size]
+                chunk_num = i // chunk_size + 1
+                
+                logging.info(f"         -> Chunk {chunk_num}/{total_chunks}: Solicitando {len(chunk)} tickers...")
+                t_start = time.time()
+                self._download_and_save_batch(chunk, start_date, yf_interval, timeframe)
+                logging.info(f"         ✅ Chunk {chunk_num} ok ({time.time() - t_start:.2f}s)")
 
     def _download_and_save_batch(self, tickers: List[str], start_date: str, interval: str, timeframe: str):
         try:
-            # yf.download devuelve MultiIndex (Price, Ticker) si hay mas de 1 ticker
-            # auto_adjust=True para ajustar splits/divs
-            # threads=False para evitar saturar conexiones y error 429/ConnectionRefused
             data = yf.download(tickers, start=start_date, interval=interval, auto_adjust=True, threads=False, progress=False)
             
             if data.empty:
+                logging.warning(f"            ⚠️ Batch vacío para {len(tickers)} tickers.")
                 return
+
+            logging.info(f"            📥 Recibidos {len(data)} registros temporales.")
 
             # Normalizar estructura
             # Caso A: Un solo ticker (Index es fecha, columnas son Open, Close...)
