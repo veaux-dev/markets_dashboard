@@ -31,7 +31,6 @@ class Daemon:
     def __init__(self):
         self.running = True
         self.jobs_configured = False
-        self.db = Database()
         
         # Manejo de señales para salir elegante (Ctrl+C o Docker Stop)
         signal.signal(signal.SIGINT, self.shutdown)
@@ -73,42 +72,105 @@ class Daemon:
         except Exception as e:
             logging.error(f"❌ Error crítico lanzando subproceso {job_name}: {e}")
 
+    def bootstrap_db(self) -> bool:
+        """
+        Check if DB exists. If not, create it, import backup, and return True
+        to trigger initial scans.
+        """
+        cfg = load_settings()
+        db_path = Path("data") / cfg.system.db_filename
+        csv_path = Path("data/backup_holdings.csv")
+        
+        if db_path.exists():
+            return False
+
+        logging.warning("⚠️ DB Missing. Starting Bootstrap sequence...")
+        
+        try:
+            # 1. Init Schema (Using Database Class)
+            logging.info("🛠️ Initializing Database Schema...")
+            from svc_v2.db import Database
+            import pandas as pd
+            
+            # This creates tables automatically on __init__
+            db = Database(str(db_path))
+            
+            # 2. Import CSV if exists
+            if csv_path.exists():
+                logging.info(f"📂 Found backup ledger: {csv_path}. Importing...")
+                try:
+                    df = pd.read_csv(csv_path)
+                    count = 0
+                    for _, row in df.iterrows():
+                        # Map CSV columns to DB args safely
+                        db.add_transaction(
+                            ticker=str(row['ticker']),
+                            side=str(row['side']),
+                            qty=float(row['qty']),
+                            price=float(row['price']),
+                            currency=str(row.get('currency', 'MXN')),
+                            timestamp=row.get('timestamp', row.get('date')),
+                            notes=str(row.get('notes', 'CSV BOOTSTRAP'))
+                        )
+                        count += 1
+                    logging.info(f"✅ Backup imported ({count} txns).")
+                except Exception as e:
+                    logging.error(f"❌ Failed to import backup: {e}")
+            else:
+                 logging.warning("⚠️ No backup CSV found. Starting with empty portfolio.")
+            
+            # 3. CRITICAL: Close connection and release Singleton to avoid Lock in Subprocesses
+            db.close()
+            Database._instance = None
+            logging.info("🔓 DB Connection closed for subprocesses.")
+            
+            return True
+
+        except Exception as e:
+            logging.error(f"❌ Critical Error during Bootstrap: {e}")
+            return False
+
     def check_staleness(self):
         """
         Verifica si los datos están muy viejos al inicio y corre los jobs si hace falta.
         """
         logging.info("🕵️ Verificando frescura de datos...")
         try:
-            # 1. Broad Scan (Diario)
-            # Checamos si hay datos de hoy (1d)
-            res = self.db.conn.execute("SELECT max(timestamp) FROM ohlcv WHERE timeframe='1d'").fetchone()
-            last_1d = res[0]
+            cfg = load_settings()
+            db_path = Path("data") / cfg.system.db_filename
             
-            should_run_broad = False
-            if last_1d is None:
-                should_run_broad = True
-            else:
-                # Si la última vela diaria es de hace más de 20 horas, asumimos que falta scan
-                if (datetime.now() - last_1d).total_seconds() > 20 * 3600:
+            if not db_path.exists():
+                return # Handled by bootstrap
+
+            import duckdb
+            # Usamos una conexión temporal read-only para checar staleness
+            with duckdb.connect(str(db_path), read_only=True) as con:
+                # 1. Broad Scan
+                res = con.execute("SELECT max(timestamp) FROM ohlcv WHERE timeframe='1d'").fetchone()
+                last_1d = res[0]
+                
+                should_run_broad = False
+                if last_1d is None:
                     should_run_broad = True
+                else:
+                    if (datetime.now() - last_1d).total_seconds() > 20 * 3600:
+                        should_run_broad = True
+                
+                # 2. Detailed Scan
+                res = con.execute("SELECT max(timestamp) FROM indicators WHERE timeframe='1h'").fetchone()
+                last_1h = res[0]
+                
+                should_run_detailed = False
+                if last_1h is None:
+                    should_run_detailed = True
+                else:
+                    if (datetime.now() - last_1h).total_seconds() > 3600:
+                        should_run_detailed = True
             
             if should_run_broad:
                 logging.warning("⚠️ Datos diarios obsoletos. Ejecutando Broad Scan de inmediato.")
                 self.run_job_subprocess("svc_v2.jobs.broad_scan", "Broad Scan (Startup)")
 
-            # 2. Detailed Scan (Intradía)
-            # Checamos timestamp de indicators 1h
-            res = self.db.conn.execute("SELECT max(timestamp) FROM indicators WHERE timeframe='1h'").fetchone()
-            last_1h = res[0]
-            
-            should_run_detailed = False
-            if last_1h is None:
-                should_run_detailed = True
-            else:
-                # Si pasó más de 1 hora
-                if (datetime.now() - last_1h).total_seconds() > 3600:
-                    should_run_detailed = True
-            
             if should_run_detailed:
                 logging.warning("⚠️ Datos intradía obsoletos. Ejecutando Detailed Scan de inmediato.")
                 self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan (Startup)")
@@ -168,11 +230,20 @@ class Daemon:
     def start(self):
         logging.info("🔥 MarketDashboard V2 Daemon Iniciado")
         
-        # Primera carga de schedule
+        # 1. Bootstrap Check
+        was_fresh_install = self.bootstrap_db()
+        
+        # 2. Load Schedule
         self.refresh_schedule()
         
-        # Verificar si hay que correr YA
-        self.check_staleness()
+        # 3. Initial Scans
+        if was_fresh_install:
+            logging.info("🆕 Fresh Install detected. Running sequential full scans...")
+            self.run_job_subprocess("svc_v2.jobs.broad_scan", "Broad Scan (Bootstrap)")
+            self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan (Bootstrap)")
+        else:
+            # Normal startup: check if we missed a scheduled run
+            self.check_staleness()
         
         # Loop Principal
         while self.running:
