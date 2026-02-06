@@ -119,6 +119,17 @@ class Database:
             );
         """)
 
+        # 5b. Tabla SIGNAL HISTORY (Para control de Spam / Notificaciones)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS signal_history (
+                ticker VARCHAR,
+                strategy VARCHAR,
+                timeframe VARCHAR,
+                price DOUBLE,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
         # 6. Tabla PORTFOLIO TRANSACTIONS (Ledger)
         self.conn.execute("""
             CREATE SEQUENCE IF NOT EXISTS txn_id_seq;

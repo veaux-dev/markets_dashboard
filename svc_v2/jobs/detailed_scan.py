@@ -5,6 +5,7 @@ from svc_v2.db import Database
 from svc_v2.collector import Collector
 from svc_v2.analyzer import Analyzer
 from svc_v2.screener import ScreenerEngine
+from svc_v2.notifier import Notifier
 
 # Configurar logs
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -12,11 +13,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 def main():
     print("\n🔬 MARKET DASHBOARD V2: Detailed Scan (Intraday) 🔬\n")
 
-    # 1. Cargar Configuración
+    # ... (Carga de config)
     try:
         cfg = load_settings()
-        # Verificar Market Hours (Simple check, el Daemon lo hace pero doble seguridad)
-        # Omitimos logica compleja de hora aqui, asumimos que si corre es porque toca.
     except Exception as e:
         logging.error(f"Fallo crítico cargando configuración: {e}")
         return
@@ -26,8 +25,9 @@ def main():
     col = Collector(db)
     alz = Analyzer(db)
     eng = ScreenerEngine(db)
+    notif = Notifier(db)
 
-    # 3. Construir Universo (SOLO Watchlist + Holdings + Dynamic Candidates)
+    # ... (Carga de Universo VIP)
     print("🌌 Cargando Universo VIP (Watchlist + Holdings + Dynamic)...")
     
     # A) Recuperar Holdings Reales desde DB (Ledger)
@@ -38,32 +38,24 @@ def main():
         logging.warning(f"No se pudo leer view_portfolio_holdings: {e}")
         my_holdings = set()
 
-    # B) Estáticos (Config - Backup por si DB falla o para inicializar)
     holding_tickers = [h.ticker if hasattr(h, 'ticker') else h for h in cfg.portfolios.holdings]
-    # Unimos holdings de DB y Config
     all_holdings = my_holdings.union(set(holding_tickers))
     
-    # C) Watchlist + Dynamic
     static_tickers = cfg.universe.watchlist
     dynamic_tickers = db.get_dynamic_watchlist()
     
-    # Unificar y deduplicar
     vip_tickers = list(all_holdings.union(set(static_tickers + dynamic_tickers)))
     
     if not vip_tickers:
         print("   ⚠️ No hay activos VIP para escanear.")
         return
 
-    print(f"   -> Origen: {len(all_holdings)} Holdings + {len(dynamic_tickers)} Dynamic DB + {len(static_tickers)} Watchlist")
-    
-    # Recuperar nombres
+    # ... (Recuperar nombres)
     try:
         q_names = f"SELECT ticker, name FROM ticker_metadata WHERE ticker IN ({','.join([f"'{t}'" for t in vip_tickers])})"
         name_map = db.conn.execute(q_names).df().set_index('ticker')['name'].to_dict()
     except Exception:
         name_map = {}
-        
-    print(f"   -> Escaneando {len(vip_tickers)} activos VIP.")
 
     # 4. Loop por Timeframe Intradía
     timeframes = cfg.data.timeframes.get('detailed', ['1h', '15m'])
@@ -98,12 +90,6 @@ def main():
             candidates['name'] = candidates['ticker'].map(name_map).fillna(candidates['ticker'])
             candidates['name'] = candidates['name'].astype(str).str.slice(0, 20)
             
-            # Definir columnas a mostrar
-            cols = ['ticker', 'name', 'close']
-            extra = ['chg_pct', 'gap_pct', 'rsi', 'adx'] # Prioridad
-            for c in extra:
-                if c in candidates.columns: cols.append(c)
-
             # Separar Holdings vs Resto
             is_holding_mask = candidates['ticker'].isin(all_holdings)
             df_holdings = candidates[is_holding_mask]
@@ -111,11 +97,25 @@ def main():
 
             if not df_holdings.empty:
                 print(f"\n   🚨 {label} [MY HOLDINGS] ({len(df_holdings)})")
-                print(df_holdings[cols].to_string(index=False))
+                for _, row in df_holdings.iterrows():
+                    notif.notify_strategy_hit(
+                        ticker=row['ticker'], 
+                        strategy=strat_key, 
+                        timeframe=tf, 
+                        price=row['close'],
+                        extra_info=f"⚠️ Holding Position: {row['name']}"
+                    )
             
             if not df_market.empty:
                 print(f"\n   🔭 {label} [MARKET] ({len(df_market)})")
-                print(df_market[cols].to_string(index=False))
+                for _, row in df_market.iterrows():
+                    notif.notify_strategy_hit(
+                        ticker=row['ticker'], 
+                        strategy=strat_key, 
+                        timeframe=tf, 
+                        price=row['close'],
+                        extra_info=f"Candidate from Watchlist: {row['name']}"
+                    )
 
     print("\n✅ Detailed Scan Finalizado.")
     db.close()
