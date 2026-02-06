@@ -41,15 +41,33 @@ class Notifier:
         except Exception as e:
             logging.error(f"Error logging notification: {e}")
 
+    def is_holding(self, ticker: str) -> bool:
+        """Verifica si el ticker está actualmente en el portafolio."""
+        try:
+            res = self.db.conn.execute(
+                "SELECT count(*) FROM view_portfolio_holdings WHERE ticker = ?", 
+                [ticker]
+            ).fetchone()
+            return res[0] > 0
+        except Exception as e:
+            logging.error(f"Error checking holdings for {ticker}: {e}")
+            return False
+
     def send_discord(self, message: str, ticker: str = None, strategy: str = None, timeframe: str = None, price: float = None):
         """Envía mensaje a Discord y lo registra."""
         if not self.enabled:
             return
 
-        # Si tenemos metadatos, verificamos spam
+        # Si tenemos metadatos, verificamos spam y reglas de negocio
         if ticker and strategy and timeframe:
+            # Regla 1: No spamear (Cooldown)
             if not self.should_notify(ticker, strategy, timeframe):
                 logging.info(f"🚫 Notificación silenciada (Spam Control): {ticker} {strategy}")
+                return
+            
+            # Regla 2: SELL solo si tengo posición
+            if "SELL" in strategy and not self.is_holding(ticker):
+                logging.info(f"🚫 Notificación silenciada (No Holding): {ticker} {strategy}")
                 return
 
         try:
@@ -70,16 +88,15 @@ class Notifier:
         """Formatea y envía una alerta de estrategia."""
         emoji = "🟢" if "BUY" in strategy else "🔴" if "SELL" in strategy else "⚪"
         
-        msg = f"{emoji} **SIGNAL DETECTED** {emoji}"
-        msg += f"**Ticker:** `${ticker}`"
-        msg += f"**Strategy:** `{strategy}`"
-        msg += f"**Timeframe:** `{timeframe}`"
-        msg += f"**Price:** `{price:.2f}`"
+        msg = f"{emoji} **SIGNAL DETECTED** {emoji}\n"
+        msg += f"**Ticker:** `{ticker}`\n"
+        msg += f"**Strategy:** `{strategy}`\n"
+        msg += f"**Timeframe:** `{timeframe}`\n"
+        msg += f"**Price:** `${price:.2f}`\n"
         if extra_info:
-            msg += f"**Note:** {extra_info}"
+            msg += f"**Note:** {extra_info}\n"
         
-        # Link a la Triple Screen (Asumiendo tu NAS o IP de Red Local)
-        # Podríamos sacar la base_url del config en el futuro
-        msg += f"[🔍 Ver en Dashboard](http://192.168.50.50:8000/static/triple_screen.html?ticker={ticker})"
+        # Link a la Triple Screen (IP NAS)
+        msg += f"[🔍 Ver en Dashboard](http://192.168.50.227:8000/static/triple_screen.html?ticker={ticker})"
 
         self.send_discord(msg, ticker, strategy, timeframe, price)

@@ -170,9 +170,10 @@ def get_screener_results():
             FROM all_targets t
             LEFT JOIN ticker_metadata m ON t.ticker = m.ticker
             LEFT JOIN latest_data d ON t.ticker = d.ticker AND d.rn = 1
+            -- Default Sorting: Strategies DESC (Signals First), then Ticker ASC
             ORDER BY 
-                CASE WHEN t.reason IS NOT NULL THEN 0 ELSE 1 END,
-                t.added_at DESC
+                CASE WHEN t.reason IS NOT NULL AND t.reason != '' THEN 0 ELSE 1 END,
+                t.ticker ASC
         """
         df = query_db(query)
         if df.empty:
@@ -205,7 +206,11 @@ def get_portfolio():
     Retorna las posiciones actuales del usuario con P&L calculado.
     """
     try:
-        # 1. Query que une la vista de holdings con precios actuales y señales
+        # 1. Obtener tipo de cambio USDMXN
+        fx_df = query_db("SELECT close FROM ohlcv WHERE ticker = 'USDMXN=X' AND timeframe = '1d' ORDER BY timestamp DESC LIMIT 1")
+        fx_rate = fx_df.iloc[0]['close'] if not fx_df.empty else 20.0 # Fallback seguro
+        
+        # 2. Query que une la vista de holdings con precios actuales y señales
         query = """
             WITH latest_prices AS (
                 SELECT ticker, close, 
@@ -223,25 +228,94 @@ def get_portfolio():
                 h.qty,
                 h.avg_buy_price,
                 p.close as current_price,
-                (p.close - h.avg_buy_price) * h.qty as pnl_val,
-                ((p.close / h.avg_buy_price) - 1) * 100 as pnl_pct,
                 m.name,
-                COALESCE(s.strategies, '') as strategies
+                COALESCE(s.strategies, '') as strategies,
+                'MXN' as currency -- Default, idealmente debería venir de metadata o inferencia
             FROM view_portfolio_holdings h
             LEFT JOIN latest_prices p ON h.ticker = p.ticker AND p.rn = 1
             LEFT JOIN ticker_metadata m ON h.ticker = m.ticker
             LEFT JOIN active_signals s ON h.ticker = s.ticker
-            ORDER BY pnl_val DESC
+            ORDER BY h.ticker
         """
         df = query_db(query)
         if df.empty:
-            return []
+            return {"items": [], "totals": {}}
             
-        # Limpieza nuclear para JSON
-        df = df.astype(object)
-        df = df.where(pd.notnull(df), None)
+        # Inferencia de divisa (Temporal hasta tener columna en DB o Metadata)
+        # Asumimos que tickers con "." (MX) son MXN, resto USD.
+        # Excepción: USDMXN=X es FX.
+        def infer_currency(row):
+            if ".MX" in row['ticker']: return "MXN"
+            if row['ticker'] == "USDMXN=X": return "MXN"
+            return "USD"
+            
+        df['currency'] = df.apply(infer_currency, axis=1)
+
+        # Cálculo de P&L y Totales
+        items = []
+        total_mxn_inv = 0
+        total_mxn_val = 0
+        total_usd_inv = 0
+        total_usd_val = 0
         
-        return df.to_dict(orient="records")
+        for _, row in df.iterrows():
+            qty = float(row['qty'])
+            avg = float(row['avg_buy_price'])
+            curr = float(row['current_price']) if row['current_price'] else avg
+            
+            invested = qty * avg
+            current_val = qty * curr
+            pnl_val = current_val - invested
+            pnl_pct = (pnl_val / invested * 100) if invested > 0 else 0
+            
+            item = row.to_dict()
+            item['pnl_val'] = pnl_val
+            item['pnl_pct'] = pnl_pct
+            item['invested'] = invested
+            item['current_val'] = current_val
+            
+            # Limpieza NaN
+            for k, v in item.items():
+                if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                    item[k] = None
+            
+            items.append(item)
+            
+            # Totales
+            if row['currency'] == 'MXN':
+                total_mxn_inv += invested
+                total_mxn_val += current_val
+            else:
+                total_usd_inv += invested
+                total_usd_val += current_val
+
+        # Gran Total Estimado en MXN
+        est_total_inv = total_mxn_inv + (total_usd_inv * fx_rate)
+        est_total_val = total_mxn_val + (total_usd_val * fx_rate)
+        est_pnl_val = est_total_val - est_total_inv
+        est_pnl_pct = (est_pnl_val / est_total_inv * 100) if est_total_inv > 0 else 0
+
+        totals = {
+            "mxn": {
+                "invested": total_mxn_inv,
+                "current": total_mxn_val,
+                "pnl": total_mxn_val - total_mxn_inv
+            },
+            "usd": {
+                "invested": total_usd_inv,
+                "current": total_usd_val,
+                "pnl": total_usd_val - total_usd_inv
+            },
+            "grand_total_mxn": {
+                "invested": est_total_inv,
+                "current": est_total_val,
+                "pnl": est_pnl_val,
+                "pnl_pct": est_pnl_pct,
+                "fx_rate": fx_rate
+            }
+        }
+        
+        return {"items": items, "totals": totals}
     except Exception as e:
         logging.error(f"Error en get_portfolio: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -286,7 +360,7 @@ def get_ticker_details(ticker: str):
                 ema_20, ema_50, ema_200,
                 rsi, macd_hist, adx, vol_k,
                 bb_upper, bb_lower,
-                donchian_high as resistance, donchian_low as support,
+                donchian_high, donchian_low,
                 gap_pct, chg_pct
             FROM indicators 
             JOIN ohlcv USING (ticker, timeframe, timestamp)
@@ -324,6 +398,8 @@ def get_ticker_details(ticker: str):
         ema_short = []
         ema_mid = []
         ema_long = []
+        donchian_h = []
+        donchian_l = []
         
         seen_ts = set()
         for _, row in df.iterrows():
@@ -365,6 +441,9 @@ def get_ticker_details(ticker: str):
             if pd.notnull(row['ema_20']): ema_short.append({"time": time_val, "value": row['ema_20']})
             if pd.notnull(row['ema_50']): ema_mid.append({"time": time_val, "value": row['ema_50']})
             if pd.notnull(row['ema_200']): ema_long.append({"time": time_val, "value": row['ema_200']})
+            
+            if pd.notnull(row['donchian_high']): donchian_h.append({"time": time_val, "value": row['donchian_high']})
+            if pd.notnull(row['donchian_low']): donchian_l.append({"time": time_val, "value": row['donchian_low']})
 
         # Payload del timeframe
         # as_of: Convertimos a ISO format y agregamos Z para que JS sepa que es UTC
@@ -380,6 +459,8 @@ def get_ticker_details(ticker: str):
             "rsi": last_row.get('rsi'),
             "adx": last_row.get('adx'),
             "macd_hist": last_row.get('macd_hist'),
+            "support": last_row.get('donchian_low'),
+            "resistance": last_row.get('donchian_high'),
             "volume": last_row['volume'],
             "ema_short_len": 20,
             "ema_mid_len": 50,
@@ -391,7 +472,9 @@ def get_ticker_details(ticker: str):
                 "macd_hist": macd_series,
                 "ema_short": ema_short,
                 "ema_mid": ema_mid,
-                "ema_long": ema_long
+                "ema_long": ema_long,
+                "donchian_high": donchian_h,
+                "donchian_low": donchian_l
             }
         }
         

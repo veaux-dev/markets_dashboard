@@ -604,6 +604,19 @@
           if (emaMid.length) addSeries(priceChart, LightweightCharts.LineSeries, { color: "#f97316", lineWidth: 2, priceLineVisible: false }).setData(emaMid);
           if (emaLong.length) addSeries(priceChart, LightweightCharts.LineSeries, { color: "#4cc9f0", lineWidth: 2, priceLineVisible: false }).setData(emaLong);
 
+          // Support & Resistance (Donchian)
+          const donchianH = (data.series && data.series.donchian_high) || [];
+          const donchianL = (data.series && data.series.donchian_low) || [];
+          
+          if (donchianH.length) {
+              const s = addSeries(priceChart, LightweightCharts.LineSeries, { color: "rgba(249, 115, 22, 0.4)", lineWidth: 1, lineStyle: 2, priceLineVisible: false });
+              s.setData(donchianH);
+          }
+          if (donchianL.length) {
+              const s = addSeries(priceChart, LightweightCharts.LineSeries, { color: "rgba(148, 163, 184, 0.4)", lineWidth: 1, lineStyle: 2, priceLineVisible: false });
+              s.setData(donchianL);
+          }
+
           if (rsiSeries.length) {
             const rsiLine = addSeries(rsiChart, LightweightCharts.LineSeries, { color: "#a855f7", lineWidth: 2, priceLineVisible: false });
             rsiLine.setData(rsiSeries);

@@ -260,26 +260,66 @@
       async function loadPortfolio(){
         try {
           const resp = await fetch('/api/v2/portfolio');
+          if (resp.status === 500) throw new Error("Server Syncing...");
           if (!resp.ok) throw new Error("API Error");
-          currentPortfolio = await resp.json();
-          renderPortfolio();
+          const data = await resp.json();
+          currentPortfolio = data.items || [];
+          renderPortfolio(data.totals);
         } catch (err) {
-          portfolioContainer.innerHTML = `<div class="loading">Error loading portfolio: ${err.message}</div>`;
+          console.warn(err);
+          // Don't wipe the table on transient errors, just show a pill or small error
+          if(currentPortfolio.length === 0) {
+             portfolioContainer.innerHTML = `<div class="loading">${err.message}</div>`;
+          }
         }
       }
 
-      function renderPortfolio(){
+      function renderPortfolio(totals){
         if(!currentPortfolio.length) {
             portfolioContainer.innerHTML = '<div class="loading" style="padding: 20px;">No open positions found in trade log.</div>';
             return;
         }
         
-        let totalInvested = 0;
-        let totalCurrent = 0;
-        let totalPnL = 0;
+        // Helper para filas de items
+        const renderRows = (items) => {
+            return items.map(item => {
+                const qty = item.qty || 0;
+                const avg = item.avg_buy_price || 0;
+                const curr = item.current_price || 0;
+                const invested = item.invested || 0;
+                const pnlVal = item.pnl_val || 0;
+                const pnlPct = item.pnl_pct || 0;
+                const pnlClass = pnlPct >= 0 ? 'val-up' : 'val-down';
+                
+                let badgesHtml = '';
+                if (item.strategies) {
+                    item.strategies.split(', ').forEach(s => {
+                        let color = 'var(--muted)';
+                        if(s.includes('BUY')) color = 'var(--accent)';
+                        if(s.includes('SELL')) color = 'var(--danger)';
+                        badgesHtml += `<span class="badge-strat" style="background:rgba(255,255,255,0.05); border-color:${color}; color:${color}">${s}</span>`;
+                    });
+                }
 
-        let html = `
-          <table>
+                return `
+                <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
+                  <td class="ticker-cell">${item.ticker} <span class="meta-cell" style="font-weight:400; font-size:11px">${item.name || ''}</span></td>
+                  <td>${badgesHtml}</td>
+                  <td>${qty}</td>
+                  <td class="meta-cell">$${avg.toFixed(2)}</td>
+                  <td style="font-weight:600">$${curr.toFixed(2)}</td>
+                  <td>$${invested.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                  <td class="${pnlClass}" style="font-weight:700">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</td>
+                  <td class="${pnlClass}">${pnlVal >= 0 ? '+' : ''}$${pnlVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                </tr>`;
+            }).join('');
+        };
+
+        // Separar por divisa
+        const mxnItems = currentPortfolio.filter(i => i.currency === 'MXN');
+        const usdItems = currentPortfolio.filter(i => i.currency === 'USD');
+
+        let html = `<table>
             <thead>
               <tr>
                 <th>Ticker</th>
@@ -292,61 +332,56 @@
                 <th>P&L $</th>
               </tr>
             </thead>
-            <tbody>
-        `;
-        
-        currentPortfolio.forEach(item => {
-          const qty = item.qty || 0;
-          const avg = item.avg_buy_price || 0;
-          const curr = item.current_price || 0;
-          const invested = qty * avg;
-          const currentVal = qty * curr;
-          const pnlVal = currentVal - invested;
-          const pnlPct = invested > 0 ? (pnlVal / invested * 100) : 0;
-          
-          totalInvested += invested;
-          totalCurrent += currentVal;
-          totalPnL += pnlVal;
+            <tbody>`;
 
-          const pnlClass = pnlPct >= 0 ? 'val-up' : 'val-down';
+        if (mxnItems.length) {
+            html += `<tr style="background:rgba(255,255,255,0.02)"><td colspan="8" style="font-weight:bold; color:var(--muted); padding-top:15px">🇲🇽 MXN HOLDINGS</td></tr>`;
+            html += renderRows(mxnItems);
+            // Subtotal MXN
+            if (totals && totals.mxn) {
+                 const t = totals.mxn;
+                 const cls = t.pnl >= 0 ? 'val-up' : 'val-down';
+                 html += `<tr style="border-top:1px solid var(--stroke); font-weight:600; font-size:13px">
+                    <td colspan="5" style="text-align:right">Subtotal MXN</td>
+                    <td>$${t.invested.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                    <td></td>
+                    <td class="${cls}">$${t.pnl.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                 </tr>`;
+            }
+        }
 
-          // Construir Badges
-          let badgesHtml = '';
-          if (item.strategies) {
-              item.strategies.split(', ').forEach(s => {
-                  let color = 'var(--muted)';
-                  if(s.includes('BUY')) color = 'var(--accent)';
-                  if(s.includes('SELL')) color = 'var(--danger)';
-                  badgesHtml += `<span class="badge-strat" style="background:rgba(255,255,255,0.05); border-color:${color}; color:${color}">${s}</span>`;
-              });
-          }
-          
-          html += `
-            <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
-              <td class="ticker-cell">${item.ticker} <span class="meta-cell" style="font-weight:400; font-size:11px">${item.name || ''}</span></td>
-              <td>${badgesHtml}</td>
-              <td>${qty}</td>
-              <td class="meta-cell">$${avg.toFixed(2)}</td>
-              <td style="font-weight:600">$${curr.toFixed(2)}</td>
-              <td>$${invested.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-              <td class="${pnlClass}" style="font-weight:700">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</td>
-              <td class="${pnlClass}">${pnlVal >= 0 ? '+' : ''}$${pnlVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        if (usdItems.length) {
+            html += `<tr style="background:rgba(255,255,255,0.02)"><td colspan="8" style="font-weight:bold; color:var(--muted); padding-top:15px">🇺🇸 USD HOLDINGS</td></tr>`;
+            html += renderRows(usdItems);
+            // Subtotal USD
+            if (totals && totals.usd) {
+                 const t = totals.usd;
+                 const cls = t.pnl >= 0 ? 'val-up' : 'val-down';
+                 html += `<tr style="border-top:1px solid var(--stroke); font-weight:600; font-size:13px">
+                    <td colspan="5" style="text-align:right">Subtotal USD</td>
+                    <td>$${t.invested.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                    <td></td>
+                    <td class="${cls}">$${t.pnl.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                 </tr>`;
+            }
+        }
+
+        // GRAN TOTAL
+        if (totals && totals.grand_total_mxn) {
+             const g = totals.grand_total_mxn;
+             const cls = g.pnl >= 0 ? 'val-up' : 'val-down';
+             const fx = g.fx_rate || 20;
+             html += `
+            <tr style="border-top: 3px solid var(--stroke); background: rgba(255,255,255,0.05); font-weight: 700; height: 50px;">
+                <td colspan="5" style="text-align: right; padding-right: 20px;">
+                    TOTAL PORTFOLIO (EST. MXN) <span style="font-weight:400; font-size:11px; color:var(--muted)">FX: $${fx.toFixed(2)}</span>
+                </td>
+                <td>$${g.invested.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                <td class="${cls}">${g.pnl_pct >= 0 ? '+' : ''}${g.pnl_pct.toFixed(2)}%</td>
+                <td class="${cls}">${g.pnl >= 0 ? '+' : ''}$${g.pnl.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
             </tr>
-          `;
-        });
-        
-        // Footer con Totales
-        const totalClass = totalPnL >= 0 ? 'val-up' : 'val-down';
-        const totalPct = totalInvested > 0 ? (totalPnL / totalInvested * 100) : 0;
-
-        html += `
-            <tr style="border-top: 2px solid var(--stroke); background: rgba(255,255,255,0.05); font-weight: 700;">
-                <td colspan="5" style="text-align: right; padding-right: 20px;">TOTAL PORTFOLIO</td>
-                <td>$${totalInvested.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                <td class="${totalClass}">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%</td>
-                <td class="${totalClass}">${totalPnL >= 0 ? '+' : ''}$${totalPnL.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-            </tr>
-        `;
+            `;
+        }
         
         html += `</tbody></table>`;
         portfolioContainer.innerHTML = html;

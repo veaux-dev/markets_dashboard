@@ -38,8 +38,8 @@ class ScreenerEngine:
         FROM latest
         WHERE rn = 1
           AND (gap_pct <= -6 OR chg_pct <= -6)
-          AND rsi BETWEEN 5 AND 60
-          AND vol_k >= 0.6
+          AND rsi <= 35  -- Stricter (was 5-60)
+          AND vol_k >= 0.8 -- Decent volume
         ORDER BY gap_pct ASC
         """
         return self.db.conn.execute(query).df()
@@ -61,6 +61,7 @@ class ScreenerEngine:
         FROM latest
         WHERE rn = 1
           AND adx >= 25
+          AND vol_k >= 0.8 -- Ensure it's not dead volume
           AND ema_50 > ema_200
           AND close > ema_50
           AND macd_hist > 0

@@ -5,13 +5,14 @@ import subprocess
 import sys
 import signal
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Ajustar path para encontrar módulos locales
 sys.path.append(str(Path(__file__).parent))
 
 from svc_v2.config_loader import load_settings
+from svc_v2.db import Database
 
 # Asegurar que directorio de logs exista
 os.makedirs("logs", exist_ok=True)
@@ -30,6 +31,7 @@ class Daemon:
     def __init__(self):
         self.running = True
         self.jobs_configured = False
+        self.db = Database()
         
         # Manejo de señales para salir elegante (Ctrl+C o Docker Stop)
         signal.signal(signal.SIGINT, self.shutdown)
@@ -61,9 +63,58 @@ class Daemon:
                 logging.info(f"✅ Job {job_name} finalizado con éxito en {duration:.2f}s.")
             else:
                 logging.error(f"❌ Job {job_name} falló con código {result.returncode}.")
-                
+            
+            # Log next run time
+            next_run = schedule.next_run()
+            if next_run:
+                delta = next_run - datetime.now()
+                logging.info(f"⏳ Próxima ejecución programada en: {str(delta).split('.')[0]} (a las {next_run.strftime('%H:%M:%S')})")
+
         except Exception as e:
             logging.error(f"❌ Error crítico lanzando subproceso {job_name}: {e}")
+
+    def check_staleness(self):
+        """
+        Verifica si los datos están muy viejos al inicio y corre los jobs si hace falta.
+        """
+        logging.info("🕵️ Verificando frescura de datos...")
+        try:
+            # 1. Broad Scan (Diario)
+            # Checamos si hay datos de hoy (1d)
+            res = self.db.conn.execute("SELECT max(timestamp) FROM ohlcv WHERE timeframe='1d'").fetchone()
+            last_1d = res[0]
+            
+            should_run_broad = False
+            if last_1d is None:
+                should_run_broad = True
+            else:
+                # Si la última vela diaria es de hace más de 20 horas, asumimos que falta scan
+                if (datetime.now() - last_1d).total_seconds() > 20 * 3600:
+                    should_run_broad = True
+            
+            if should_run_broad:
+                logging.warning("⚠️ Datos diarios obsoletos. Ejecutando Broad Scan de inmediato.")
+                self.run_job_subprocess("svc_v2.jobs.broad_scan", "Broad Scan (Startup)")
+
+            # 2. Detailed Scan (Intradía)
+            # Checamos timestamp de indicators 1h
+            res = self.db.conn.execute("SELECT max(timestamp) FROM indicators WHERE timeframe='1h'").fetchone()
+            last_1h = res[0]
+            
+            should_run_detailed = False
+            if last_1h is None:
+                should_run_detailed = True
+            else:
+                # Si pasó más de 1 hora
+                if (datetime.now() - last_1h).total_seconds() > 3600:
+                    should_run_detailed = True
+            
+            if should_run_detailed:
+                logging.warning("⚠️ Datos intradía obsoletos. Ejecutando Detailed Scan de inmediato.")
+                self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan (Startup)")
+
+        except Exception as e:
+            logging.error(f"Error verificando staleness: {e}")
 
     def refresh_schedule(self):
         """
@@ -91,15 +142,14 @@ class Daemon:
                         job_name="Broad Scan"
                     )
 
-            # 2. Detailed Scan (Intradía) - Aún no existe el script, pero dejamos la lógica lista
+            # 2. Detailed Scan (Intradía)
             if cfg.scheduler.jobs.get('detailed_scan', {}).enabled:
                 ds_cfg = cfg.scheduler.jobs['detailed_scan']
                 interval = ds_cfg.interval_min or 15
                 
                 # Función wrapper para checar market hours
                 def job_wrapper():
-                    # Aquí iría la validación de Market Hours antes de lanzar el proceso
-                    # Por ahora lo lanzamos directo y dejamos que el script decida si correr o no
+                    # Aquí iría la validación de Market Hours
                     self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan")
 
                 logging.info(f"   -> Programando Detailed Scan cada {interval} min")
@@ -107,26 +157,26 @@ class Daemon:
 
             self.jobs_configured = True
             
+            # Log initial next run
+            next_run = schedule.next_run()
+            if next_run:
+                logging.info(f"⏳ Primera ejecución programada: {next_run.strftime('%H:%M:%S')}")
+
         except Exception as e:
             logging.error(f"⚠️ Error recargando configuración: {e}")
-            # Si falla la config, mantenemos el schedule anterior o reintentamos luego
 
     def start(self):
         logging.info("🔥 MarketDashboard V2 Daemon Iniciado")
         
-        # Primera carga
+        # Primera carga de schedule
         self.refresh_schedule()
+        
+        # Verificar si hay que correr YA
+        self.check_staleness()
         
         # Loop Principal
         while self.running:
-            # 1. Ejecutar tareas pendientes
             schedule.run_pending()
-            
-            # 2. Hot Reload Check (Opcional: Re-leer config cada X ciclos)
-            # Por simplicidad, recargamos cada hora para atrapar cambios en schedule
-            # O podríamos observar el archivo. Por ahora simple.
-            
-            # 3. Sleep eficiente
             time.sleep(1)
 
 if __name__ == "__main__":
