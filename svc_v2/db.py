@@ -167,14 +167,17 @@ class Database:
             logging.error(f"DB Error adding transaction {ticker}: {e}")
 
     def add_to_dynamic_watchlist(self, ticker: str, reason: str, days_to_keep: int = 3):
-        """Agrega un ticker a la watchlist dinámica o extiende su expiración."""
+        """Agrega un ticker a la watchlist dinámica o extiende su expiración acumulando razones."""
         try:
-            # Calcular fecha de expiración
+            # Si ya existe, concatenar la razón si es nueva
             query = f"""
                 INSERT INTO dynamic_watchlist (ticker, reason, added_at, expires_at)
                 VALUES ('{ticker}', '{reason}', now(), now() + INTERVAL {days_to_keep} DAY)
                 ON CONFLICT (ticker) DO UPDATE SET
-                    reason = EXCLUDED.reason,
+                    reason = CASE 
+                        WHEN dynamic_watchlist.reason LIKE '%{reason}%' THEN dynamic_watchlist.reason 
+                        ELSE dynamic_watchlist.reason || ', ' || EXCLUDED.reason 
+                    END,
                     expires_at = GREATEST(dynamic_watchlist.expires_at, EXCLUDED.expires_at);
             """
             self.conn.execute(query)

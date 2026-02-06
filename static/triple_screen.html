@@ -396,6 +396,16 @@
               enableResize: false,
             },
           },
+          localization: {
+            // timeFormatter permite forzar el formato local para el crosshair y labels
+            timeFormatter: (time) => {
+                const date = new Date(time * 1000);
+                return date.toLocaleString([], { 
+                    month: 'short', day: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', hour12: false 
+                });
+            },
+          },
           grid: { vertLines: { color: "#172636" }, horzLines: { color: "#172636" } },
           rightPriceScale: { borderColor: "#1f2d3a" },
           timeScale: { 

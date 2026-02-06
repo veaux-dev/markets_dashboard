@@ -104,12 +104,53 @@
       tr:hover td {
         background: rgba(255,255,255,0.02);
       }
+      tr.is-holding {
+        background: rgba(61, 220, 151, 0.03);
+      }
+      tr.is-holding td:first-child {
+        border-left: 3px solid var(--accent);
+      }
+      th.sortable {
+        cursor: pointer;
+        user-select: none;
+      }
+      th.sortable:hover {
+        color: var(--accent);
+      }
+      th.sortable:after {
+        content: ' ↕';
+        font-size: 9px;
+        opacity: 0.5;
+      }
       .ticker-cell {
         font-family: "Space Grotesk", sans-serif;
         font-weight: 700;
         color: var(--accent);
         font-size: 15px;
       }
+      .glossary {
+        margin-top: 40px;
+        padding: 20px;
+        background: var(--card);
+        border: 1px solid var(--stroke);
+        border-radius: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+      }
+      .glossary-item h4 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: var(--accent);
+        text-transform: uppercase;
+      }
+      .glossary-item p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      .val-up{ color:var(--accent); }
       .name-cell {
         color: var(--ink);
         font-weight: 500;
@@ -167,6 +208,25 @@
       <div id="tableContainer">
         <div class="loading">Fetching candidates...</div>
       </div>
+
+      <div class="glossary">
+        <div class="glossary-item">
+            <h4>🟢 BUY_BOUNCE</h4>
+            <p>Panic Bounce: Gap o caída > 6%, RSI bajo y volumen decente. Buscando el rebote del gato muerto o reversión.</p>
+        </div>
+        <div class="glossary-item">
+            <h4>🟡 BUY_TREND</h4>
+            <p>Trend Following: ADX > 25 (fuerza), EMA50 > 200 (tendencia alcista) y MACDh positivo. Montando la ola.</p>
+        </div>
+        <div class="glossary-item">
+            <h4>🔴 SELL_STRENGTH</h4>
+            <p>Euphoria Exit: RSI > 70. Solo para holdings. Buscando tomar ganancias cuando todos los demás están eufóricos.</p>
+        </div>
+        <div class="glossary-item">
+            <h4>⚪ WATCHLIST</h4>
+            <p>Tus favoritos manuales. Sin señal activa, pero bajo vigilancia constante.</p>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -176,6 +236,10 @@
       const btnGo = document.getElementById("btnGo");
       const btnRefreshList = document.getElementById("btnRefreshList");
       const btnRecalc = document.getElementById("btnRecalc");
+
+      let currentData = [];
+      let sortCol = 'added_at';
+      let sortAsc = false;
 
       btnGo.onclick = () => {
         const t = manualTicker.value.trim().toUpperCase();
@@ -188,7 +252,7 @@
             statusPill.textContent = "Running...";
             try {
                 await fetch('/api/v2/system/refresh-watchlist', {method:'POST'});
-                setTimeout(loadScreener, 2000); // Give it a sec
+                setTimeout(loadScreener, 2000); 
             } catch(e) { alert("Error: " + e.message); }
         }
       };
@@ -207,16 +271,36 @@
         try {
           const resp = await fetch('/api/v2/screener');
           if (!resp.ok) throw new Error("API Error");
-          const data = await resp.json();
-          renderScreener(data);
-          statusPill.textContent = `Active: ${data.length}`;
+          currentData = await resp.json();
+          renderScreener();
+          statusPill.textContent = `Active: ${currentData.length}`;
         } catch (err) {
           tableContainer.innerHTML = `<div class="loading">Error connecting to API: ${err.message}</div>`;
           statusPill.textContent = "Offline";
         }
       }
 
-      function renderScreener(items){
+      function sortData(col) {
+        if (sortCol === col) sortAsc = !sortAsc;
+        else { sortCol = col; sortAsc = false; }
+        renderScreener();
+      }
+
+      function renderScreener(){
+        // Cambiamos el criterio de ordenamiento por defecto a 'strategies' descendente 
+        // para que los que tienen señales salgan primero
+        const items = [...currentData].sort((a, b) => {
+            let valA = a[sortCol];
+            let valB = b[sortCol];
+            // Manejo de nulos para sorting
+            if (valA == null) valA = '';
+            if (valB == null) valB = '';
+            
+            if (valA < valB) return sortAsc ? -1 : 1;
+            if (valA > valB) return sortAsc ? 1 : -1;
+            return 0;
+        });
+
         if(!items.length) {
             tableContainer.innerHTML = '<div class="loading">No candidates found.</div>';
             return;
@@ -226,14 +310,14 @@
           <table>
             <thead>
               <tr>
-                <th>Ticker</th>
-                <th>Strategy / Reason</th>
-                <th>Price</th>
-                <th>Chg (1D)</th>
-                <th>RSI</th>
-                <th class="hide-mobile">ADX</th>
-                <th class="hide-mobile">Vol K</th>
-                <th class="hide-mobile">Added</th>
+                <th class="sortable" onclick="sortData('ticker')">Ticker</th>
+                <th class="sortable" onclick="sortData('strategies')">Signal / Tags</th>
+                <th class="sortable" onclick="sortData('close')">Price</th>
+                <th class="sortable" onclick="sortData('chg_pct')">Chg (1D)</th>
+                <th class="sortable" onclick="sortData('rsi')">RSI</th>
+                <th class="sortable hide-mobile" onclick="sortData('adx')">ADX</th>
+                <th class="sortable hide-mobile" onclick="sortData('vol_k')">Vol K</th>
+                <th class="sortable hide-mobile" onclick="sortData('added_at')">Added</th>
               </tr>
             </thead>
             <tbody>
@@ -247,13 +331,37 @@
           const volVal = item.vol_k != null ? `x${item.vol_k.toFixed(2)}` : '—';
           const priceVal = item.close != null ? item.close.toFixed(2) : '—';
           const dateAdded = item.added_at ? item.added_at.split(' ')[0] : '';
+          const holdingClass = item.is_holding ? 'is-holding' : '';
+          
+          // Construir Badges
+          let badgesHtml = '';
+          
+          // 1. Tags de Pertenencia
+          if (item.is_holding) badgesHtml += `<span class="badge-strat" style="border-color:var(--accent); color:var(--accent)">💼 HOLDING</span>`;
+          if (item.is_favourite) badgesHtml += `<span class="badge-strat" style="border-color:var(--accent-2); color:var(--accent-2)">⭐ FAV</span>`;
+          
+          // 2. Estrategias (Split por coma)
+          if (item.strategies) {
+              const strats = item.strategies.split(', ');
+              strats.forEach(s => {
+                  let color = 'var(--muted)';
+                  if(s.includes('BUY')) color = 'var(--accent)';
+                  if(s.includes('SELL')) color = 'var(--danger)';
+                  badgesHtml += `<span class="badge-strat" style="background:rgba(255,255,255,0.05); border-color:${color}; color:${color}">${s}</span>`;
+              });
+          }
+
+          // Si no tiene nada, poner tag de Watchlist genérico
+          if (!badgesHtml) badgesHtml = `<span class="badge-strat">WATCHLIST</span>`;
           
           html += `
-            <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
+            <tr class="${holdingClass}" onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
               <td class="ticker-cell">${item.ticker}</td>
               <td>
-                <span class="badge-strat">${item.reason}</span>
-                <span class="meta-cell">${item.name || ''}</span>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center">
+                    ${badgesHtml}
+                    <span class="meta-cell" style="margin-left:8px">${item.name || ''}</span>
+                </div>
               </td>
               <td style="font-weight:600">${priceVal}</td>
               <td class="${chgClass}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</td>
