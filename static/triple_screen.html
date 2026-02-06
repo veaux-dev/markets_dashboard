@@ -399,7 +399,15 @@
           localization: {
             // timeFormatter permite forzar el formato local para el crosshair y labels
             timeFormatter: (time) => {
-                const date = new Date(time * 1000);
+                // Si es un número (intradía), convertir de segundos a Date
+                // Si es un string (diario), crear Date directamente
+                const date = typeof time === 'number' ? new Date(time * 1000) : new Date(time);
+                
+                // Si es diario (no tiene horas significativas tras el ajuste), mostrar solo fecha
+                if (typeof time === 'string') {
+                    return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+                }
+                
                 return date.toLocaleString([], { 
                     month: 'short', day: 'numeric', 
                     hour: '2-digit', minute: '2-digit', hour12: false 
