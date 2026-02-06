@@ -168,13 +168,17 @@ def get_screener_results():
         if df.empty:
             return []
         
-        # Flags de pertenencia
-        df['is_holding'] = df['ticker'].isin(holdings)
-        df['is_favourite'] = df['ticker'].isin(manual_watchlist)
-        
-        # Reemplazar NaN con None
-        df = df.replace({np.nan: None})
-        
+            # Flags de pertenencia
+            df['is_holding'] = df['ticker'].isin(holdings)
+            df['is_favourite'] = df['ticker'].isin(manual_watchlist)
+            
+            # FILTRO: Eliminar los que solo son SELL_STRENGTH y no son ni holding ni fav
+            # (Discovery de ventas masivas no nos interesa si no tenemos el activo)
+            mask_to_remove = (df['strategies'] == 'SELL_STRENGTH') & (~df['is_holding']) & (~df['is_favourite'])
+            df = df[~mask_to_remove]
+            
+            # Reemplazar NaN con None
+            df = df.replace({np.nan: None})        
         # Convertir fechas
         df['added_at'] = df['added_at'].astype(str)
         return df.to_dict(orient="records")
