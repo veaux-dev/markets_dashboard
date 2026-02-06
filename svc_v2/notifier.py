@@ -70,23 +70,16 @@ class Notifier:
         """Formatea y envía una alerta de estrategia."""
         emoji = "🟢" if "BUY" in strategy else "🔴" if "SELL" in strategy else "⚪"
         
-        msg = f"{emoji} **SIGNAL DETECTED** {emoji}
-"
-        msg += f"**Ticker:** `${ticker}`
-"
-        msg += f"**Strategy:** `{strategy}`
-"
-        msg += f"**Timeframe:** `{timeframe}`
-"
-        msg += f"**Price:** `{price:.2f}`
-"
+        msg = f"{emoji} **SIGNAL DETECTED** {emoji}"
+        msg += f"**Ticker:** `${ticker}`"
+        msg += f"**Strategy:** `{strategy}`"
+        msg += f"**Timeframe:** `{timeframe}`"
+        msg += f"**Price:** `{price:.2f}`"
         if extra_info:
-            msg += f"**Note:** {extra_info}
-"
+            msg += f"**Note:** {extra_info}"
         
         # Link a la Triple Screen (Asumiendo tu NAS o IP de Red Local)
         # Podríamos sacar la base_url del config en el futuro
-        msg += f"
-[🔍 Ver en Dashboard](http://192.168.50.50:8000/static/triple_screen.html?ticker={ticker})"
+        msg += f"[🔍 Ver en Dashboard](http://192.168.50.50:8000/static/triple_screen.html?ticker={ticker})"
 
         self.send_discord(msg, ticker, strategy, timeframe, price)
