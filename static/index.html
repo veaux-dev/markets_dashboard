@@ -248,8 +248,67 @@
       const btnRecalc = document.getElementById("btnRecalc");
 
       let currentData = [];
+      let currentPortfolio = [];
       let sortCol = 'added_at';
       let sortAsc = false;
+
+      async function loadDashboard() {
+          loadScreener();
+          loadPortfolio();
+      }
+
+      async function loadPortfolio(){
+        try {
+          const resp = await fetch('/api/v2/portfolio');
+          if (!resp.ok) throw new Error("API Error");
+          currentPortfolio = await resp.json();
+          renderPortfolio();
+        } catch (err) {
+          portfolioContainer.innerHTML = `<div class="loading">Error loading portfolio: ${err.message}</div>`;
+        }
+      }
+
+      function renderPortfolio(){
+        if(!currentPortfolio.length) {
+            portfolioContainer.innerHTML = '<div class="loading" style="padding: 20px;">No open positions found in trade log.</div>';
+            return;
+        }
+        
+        let html = `
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Qty</th>
+                <th>Avg Price</th>
+                <th>Current</th>
+                <th>P&L %</th>
+                <th>P&L $</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        currentPortfolio.forEach(item => {
+          const pnlPct = item.pnl_pct || 0;
+          const pnlVal = item.pnl_val || 0;
+          const pnlClass = pnlPct >= 0 ? 'val-up' : 'val-down';
+          
+          html += `
+            <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
+              <td class="ticker-cell">${item.ticker} <span class="meta-cell" style="font-weight:400; font-size:11px">${item.name || ''}</span></td>
+              <td>${item.qty}</td>
+              <td class="meta-cell">${item.avg_buy_price ? item.avg_buy_price.toFixed(2) : '—'}</td>
+              <td style="font-weight:600">${item.current_price ? item.current_price.toFixed(2) : '—'}</td>
+              <td class="${pnlClass}" style="font-weight:700">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</td>
+              <td class="${pnlClass}">${pnlVal >= 0 ? '+' : ''}${pnlVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+            </tr>
+          `;
+        });
+        
+        html += `</tbody></table>`;
+        portfolioContainer.innerHTML = html;
+      }
 
       btnGo.onclick = () => {
         const t = manualTicker.value.trim().toUpperCase();
