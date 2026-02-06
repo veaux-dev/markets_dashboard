@@ -283,6 +283,7 @@
             <thead>
               <tr>
                 <th>Ticker</th>
+                <th>Signals</th>
                 <th>Qty</th>
                 <th>Avg Price</th>
                 <th>Current</th>
@@ -308,10 +309,22 @@
           totalPnL += pnlVal;
 
           const pnlClass = pnlPct >= 0 ? 'val-up' : 'val-down';
+
+          // Construir Badges
+          let badgesHtml = '';
+          if (item.strategies) {
+              item.strategies.split(', ').forEach(s => {
+                  let color = 'var(--muted)';
+                  if(s.includes('BUY')) color = 'var(--accent)';
+                  if(s.includes('SELL')) color = 'var(--danger)';
+                  badgesHtml += `<span class="badge-strat" style="background:rgba(255,255,255,0.05); border-color:${color}; color:${color}">${s}</span>`;
+              });
+          }
           
           html += `
             <tr onclick="window.location.href='triple_screen.html?ticker=${item.ticker}'">
               <td class="ticker-cell">${item.ticker} <span class="meta-cell" style="font-weight:400; font-size:11px">${item.name || ''}</span></td>
+              <td>${badgesHtml}</td>
               <td>${qty}</td>
               <td class="meta-cell">$${avg.toFixed(2)}</td>
               <td style="font-weight:600">$${curr.toFixed(2)}</td>
@@ -328,7 +341,7 @@
 
         html += `
             <tr style="border-top: 2px solid var(--stroke); background: rgba(255,255,255,0.05); font-weight: 700;">
-                <td colspan="4" style="text-align: right; padding-right: 20px;">TOTAL PORTFOLIO</td>
+                <td colspan="5" style="text-align: right; padding-right: 20px;">TOTAL PORTFOLIO</td>
                 <td>$${totalInvested.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                 <td class="${totalClass}">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%</td>
                 <td class="${totalClass}">${totalPnL >= 0 ? '+' : ''}$${totalPnL.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>

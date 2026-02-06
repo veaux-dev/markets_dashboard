@@ -205,13 +205,18 @@ def get_portfolio():
     Retorna las posiciones actuales del usuario con P&L calculado.
     """
     try:
-        # 1. Query que une la vista de holdings con precios actuales
+        # 1. Query que une la vista de holdings con precios actuales y señales
         query = """
             WITH latest_prices AS (
                 SELECT ticker, close, 
                        row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
                 FROM ohlcv
                 WHERE timeframe = '1d'
+            ),
+            active_signals AS (
+                SELECT ticker, reason as strategies
+                FROM dynamic_watchlist
+                WHERE expires_at > now()
             )
             SELECT 
                 h.ticker,
@@ -220,10 +225,12 @@ def get_portfolio():
                 p.close as current_price,
                 (p.close - h.avg_buy_price) * h.qty as pnl_val,
                 ((p.close / h.avg_buy_price) - 1) * 100 as pnl_pct,
-                m.name
+                m.name,
+                COALESCE(s.strategies, '') as strategies
             FROM view_portfolio_holdings h
             LEFT JOIN latest_prices p ON h.ticker = p.ticker AND p.rn = 1
             LEFT JOIN ticker_metadata m ON h.ticker = m.ticker
+            LEFT JOIN active_signals s ON h.ticker = s.ticker
             ORDER BY pnl_val DESC
         """
         df = query_db(query)
