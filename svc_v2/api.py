@@ -109,69 +109,78 @@ def get_screener_results():
     """
     Retorna los candidatos de la dynamic_watchlist MÁS los holdings y watchlist manual.
     """
-    cfg = load_settings()
-    
-    # 1. Obtener tickers de interés manual
-    holdings = []
-    for h in cfg.portfolios.holdings:
-        if hasattr(h, 'ticker'): holdings.append(h.ticker)
-        else: holdings.append(str(h))
-    
-    manual_watchlist = cfg.universe.watchlist
-    all_manual = list(set(holdings + manual_watchlist))
-    
-    # 2. Query que combina dynamic_watchlist con los manuales
-    manual_tickers_sql = ",".join([f"('{t}')" for t in all_manual])
-    
-    query = f"""
-        WITH all_targets AS (
-            -- Candidatos detectados por estrategias
-            SELECT ticker, reason, added_at FROM dynamic_watchlist WHERE expires_at > now()
-            UNION
-            -- Tickers manuales que NO están en la dynamic_watchlist (razón vacía por ahora)
-            SELECT column1 as ticker, NULL as reason, now() as added_at
-            FROM (VALUES {manual_tickers_sql})
-            WHERE column1 NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
-        ),
-        latest_data AS (
+    try:
+        cfg = load_settings()
+        
+        # 1. Obtener tickers de interés manual
+        holdings = []
+        for h in cfg.portfolios.holdings:
+            if hasattr(h, 'ticker'): holdings.append(h.ticker)
+            else: holdings.append(str(h))
+        
+        manual_watchlist = cfg.universe.watchlist
+        all_manual = list(set(holdings + manual_watchlist))
+        
+        # 2. Construir la parte manual de la query solo si hay tickers
+        manual_subquery = ""
+        if all_manual:
+            manual_tickers_sql = ",".join([f"('{t}')" for t in all_manual])
+            manual_subquery = f"""
+                UNION
+                -- Tickers manuales que NO están en la dynamic_watchlist
+                SELECT column1 as ticker, NULL as reason, now() as added_at
+                FROM (VALUES {manual_tickers_sql})
+                WHERE column1 NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
+            """
+        
+        query = f"""
+            WITH all_targets AS (
+                -- Candidatos detectados por estrategias
+                SELECT ticker, reason, added_at FROM dynamic_watchlist WHERE expires_at > now()
+                {manual_subquery}
+            ),
+            latest_data AS (
+                SELECT 
+                    i.*, o.close, 
+                    row_number() OVER (PARTITION BY i.ticker ORDER BY i.timestamp DESC) as rn
+                FROM indicators i
+                JOIN ohlcv o USING (ticker, timeframe, timestamp)
+                WHERE i.timeframe = '1d'
+            )
             SELECT 
-                i.*, o.close, 
-                row_number() OVER (PARTITION BY i.ticker ORDER BY i.timestamp DESC) as rn
-            FROM indicators i
-            JOIN ohlcv o USING (ticker, timeframe, timestamp)
-            WHERE i.timeframe = '1d'
-        )
-        SELECT 
-            t.ticker, 
-            m.name, 
-            COALESCE(t.reason, '') as strategies, 
-            t.added_at,
-            d.close, 
-            d.chg_pct, 
-            d.rsi, 
-            d.adx, 
-            d.vol_k
-        FROM all_targets t
-        LEFT JOIN ticker_metadata m ON t.ticker = m.ticker
-        LEFT JOIN latest_data d ON t.ticker = d.ticker AND d.rn = 1
-        ORDER BY 
-            CASE WHEN t.reason IS NOT NULL THEN 0 ELSE 1 END,
-            t.added_at DESC
-    """
-    df = query_db(query)
-    if df.empty:
-        return []
-    
-    # Flags de pertenencia
-    df['is_holding'] = df['ticker'].isin(holdings)
-    df['is_favourite'] = df['ticker'].isin(manual_watchlist)
-    
-    # Reemplazar NaN con None
-    df = df.replace({np.nan: None})
-    
-    # Convertir fechas
-    df['added_at'] = df['added_at'].astype(str)
-    return df.to_dict(orient="records")
+                t.ticker, 
+                m.name, 
+                COALESCE(t.reason, '') as strategies, 
+                t.added_at,
+                d.close, 
+                d.chg_pct, 
+                d.rsi, 
+                d.adx, 
+                d.vol_k
+            FROM all_targets t
+            LEFT JOIN ticker_metadata m ON t.ticker = m.ticker
+            LEFT JOIN latest_data d ON t.ticker = d.ticker AND d.rn = 1
+            ORDER BY 
+                CASE WHEN t.reason IS NOT NULL THEN 0 ELSE 1 END,
+                t.added_at DESC
+        """
+        df = query_db(query)
+        if df.empty:
+            return []
+        
+        # Flags de pertenencia
+        df['is_holding'] = df['ticker'].isin(holdings)
+        df['is_favourite'] = df['ticker'].isin(manual_watchlist)
+        
+        # Reemplazar NaN con None
+        df = df.replace({np.nan: None})
+        
+        # Convertir fechas
+        df['added_at'] = df['added_at'].astype(str)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        logging.error(f"Error en get_screener_results: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v2/ticker/{ticker}")
 def get_ticker_details(ticker: str):
