@@ -141,13 +141,17 @@ def get_screener_results():
         
         query = f"""
             WITH all_targets AS (
-                -- Candidatos detectados por estrategias
                 SELECT ticker, reason, added_at FROM dynamic_watchlist WHERE expires_at > now()
                 {manual_subquery}
             ),
             latest_data AS (
                 SELECT 
-                    i.*, o.close, 
+                    i.ticker,
+                    i.rsi, 
+                    i.adx, 
+                    i.vol_k,
+                    i.chg_pct,
+                    o.close, 
                     row_number() OVER (PARTITION BY i.ticker ORDER BY i.timestamp DESC) as rn
                 FROM indicators i
                 JOIN ohlcv o USING (ticker, timeframe, timestamp)
@@ -174,41 +178,65 @@ def get_screener_results():
         if df.empty:
             return []
         
-                # Flags de pertenencia
+        # Flags de pertenencia
+        df['is_holding'] = df['ticker'].isin(holdings)
+        df['is_favourite'] = df['ticker'].isin(manual_watchlist)
         
-                df['is_holding'] = df['ticker'].isin(holdings)
+        # FILTRO: Eliminar los que solo son SELL_STRENGTH y no son ni holding ni fav
+        mask_to_remove = (df['strategies'] == 'SELL_STRENGTH') & (~df['is_holding']) & (~df['is_favourite'])
+        df = df[~mask_to_remove]
         
-                df['is_favourite'] = df['ticker'].isin(manual_watchlist)
+        # LIMPIEZA NUCLEAR PARA JSON (V2):
+        df = df.replace([np.inf, -np.inf], np.nan)
+        # Forzar conversión a object para que acepte None
+        df = df.astype(object)
+        df = df.where(pd.notnull(df), None)
         
-                
-        
-                # FILTRO: Eliminar los que solo son SELL_STRENGTH y no son ni holding ni fav
-        
-                mask_to_remove = (df['strategies'] == 'SELL_STRENGTH') & (~df['is_holding']) & (~df['is_favourite'])
-        
-                df = df[~mask_to_remove]
-        
-                
-        
-                # LIMPIEZA NUCLEAR PARA JSON:
-        
-                # 1. Convertir Infinitos a NaN
-        
-                df = df.replace([np.inf, -np.inf], np.nan)
-        
-                # 2. Convertir todos los tipos de nulos (NaN, NaT, None) a None (null en JSON)
-        
-                df = df.where(pd.notnull(df), None)
-        
-                
-        
-                # Convertir fechas
-        
-                df['added_at'] = df['added_at'].astype(str)
-        
-                return df.to_dict(orient="records")
+        # Convertir fechas
+        df['added_at'] = df['added_at'].astype(str)
+        return df.to_dict(orient="records")
     except Exception as e:
         logging.error(f"Error en get_screener_results: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v2/portfolio")
+def get_portfolio():
+    """
+    Retorna las posiciones actuales del usuario con P&L calculado.
+    """
+    try:
+        # 1. Query que une la vista de holdings con precios actuales
+        query = """
+            WITH latest_prices AS (
+                SELECT ticker, close, 
+                       row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
+                FROM ohlcv
+                WHERE timeframe = '1d'
+            )
+            SELECT 
+                h.ticker,
+                h.qty,
+                h.avg_buy_price,
+                p.close as current_price,
+                (p.close - h.avg_buy_price) * h.qty as pnl_val,
+                ((p.close / h.avg_buy_price) - 1) * 100 as pnl_pct,
+                m.name
+            FROM view_portfolio_holdings h
+            LEFT JOIN latest_prices p ON h.ticker = p.ticker AND p.rn = 1
+            LEFT JOIN ticker_metadata m ON h.ticker = m.ticker
+            ORDER BY pnl_val DESC
+        """
+        df = query_db(query)
+        if df.empty:
+            return []
+            
+        # Limpieza nuclear para JSON
+        df = df.astype(object)
+        df = df.where(pd.notnull(df), None)
+        
+        return df.to_dict(orient="records")
+    except Exception as e:
+        logging.error(f"Error en get_portfolio: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v2/ticker/{ticker}")

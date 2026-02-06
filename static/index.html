@@ -205,6 +205,16 @@
         </div>
       </div>
 
+      <div class="header-row" style="margin-top: 20px; border-bottom: none; margin-bottom: 0;">
+        <h2 style="font-family:'Space Grotesk', sans-serif; font-size: 20px; color: var(--accent);">💼 Portfolio Holdings</h2>
+      </div>
+      <div id="portfolioContainer">
+        <div class="loading">Loading positions...</div>
+      </div>
+
+      <div class="header-row" style="margin-top: 40px; border-bottom: none; margin-bottom: 0;">
+        <h2 style="font-family:'Space Grotesk', sans-serif; font-size: 20px; color: var(--accent);">🔍 Market Screener</h2>
+      </div>
       <div id="tableContainer">
         <div class="loading">Fetching candidates...</div>
       </div>
@@ -385,9 +395,9 @@
         return '';
       }
 
-      loadScreener();
+      loadDashboard();
       // Refresh cada 5 minutos
-      setInterval(loadScreener, 300000);
+      setInterval(loadDashboard, 300000);
     </script>
   </body>
 </html>
