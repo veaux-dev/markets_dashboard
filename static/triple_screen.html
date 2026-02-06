@@ -401,12 +401,7 @@
           timeScale: { 
             borderColor: "#1f2d3a", 
             timeVisible: timeVisible, 
-            secondsVisible: false,
-            tickMarkFormatter: (time) => {
-                const date = new Date(time * 1000);
-                // Formato simple HH:MM local
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-            }
+            secondsVisible: false
           },
           watermark: { visible: false },
         });
