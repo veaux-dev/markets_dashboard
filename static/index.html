@@ -239,6 +239,10 @@
                 <input type="number" step="any" class="ticker-input" id="txPrice" placeholder="0.0" style="width:100%">
             </div>
             <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Fees</label>
+                <input type="number" step="any" class="ticker-input" id="txFees" placeholder="0.0" style="width:100%">
+            </div>
+            <div>
                 <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Currency</label>
                 <select class="ticker-input" id="txCurr" style="width:100%; height:37px;">
                     <option value="MXN">MXN</option>
@@ -327,6 +331,7 @@
       const txSide = document.getElementById("txSide");
       const txQty = document.getElementById("txQty");
       const txPrice = document.getElementById("txPrice");
+      const txFees = document.getElementById("txFees");
       const txCurr = document.getElementById("txCurr");
       const txTime = document.getElementById("txTime");
       const txNotes = document.getElementById("txNotes");
@@ -353,6 +358,7 @@
               side: txSide.value,
               qty: parseFloat(txQty.value),
               price: parseFloat(txPrice.value),
+              fees: parseFloat(txFees.value) || 0,
               currency: txCurr.value,
               timestamp: timestamp || null,
               notes: txNotes.value.trim() || null

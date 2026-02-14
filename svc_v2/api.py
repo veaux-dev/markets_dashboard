@@ -57,11 +57,11 @@ def get_db_path():
 def query_db(query: str, params: list = None) -> pd.DataFrame:
     """Helper para consultar DuckDB en modo lectura."""
     try:
-        # read_only=True es CLAVE para concurrencia con el Daemon
-        with duckdb.connect(get_db_path(), read_only=True) as con:
+        # Usamos Database para ser consistentes, siempre en RO
+        with Database(get_db_path(), read_only=True) as db:
             if params:
-                return con.execute(query, params).df()
-            return con.execute(query).df()
+                return db.conn.execute(query, params).df()
+            return db.conn.execute(query).df()
     except Exception as e:
         logging.error(f"DB Query Error: {e}")
         return pd.DataFrame()
@@ -151,17 +151,18 @@ def get_transactions(limit: int = 100):
 def add_transaction(tx: TransactionCreate):
     """Registra una nueva transacción en la DB."""
     try:
-        db = Database(get_db_path())
-        db.add_transaction(
-            ticker=tx.ticker.upper(),
-            side=tx.side.upper(),
-            qty=tx.qty,
-            price=tx.price,
-            fees=tx.fees,
-            notes=tx.notes,
-            timestamp=tx.timestamp,
-            currency=tx.currency.upper()
-        )
+        # Abrimos, escribimos y cerramos inmediatamente (transiente)
+        with Database(get_db_path(), read_only=False) as db:
+            db.add_transaction(
+                ticker=tx.ticker.upper(),
+                side=tx.side.upper(),
+                qty=tx.qty,
+                price=tx.price,
+                fees=tx.fees,
+                notes=tx.notes,
+                timestamp=tx.timestamp,
+                currency=tx.currency.upper()
+            )
         return {"status": "success", "message": f"Transaction recorded for {tx.ticker}"}
     except Exception as e:
         logging.error(f"Error adding transaction: {e}")
@@ -171,9 +172,8 @@ def add_transaction(tx: TransactionCreate):
 def delete_transaction(tx_id: int):
     """Elimina una transacción por ID."""
     try:
-        # Aquí abrimos conexión para escritura (no usamos query_db que es readonly)
-        with duckdb.connect(get_db_path()) as con:
-            con.execute("DELETE FROM portfolio_transactions WHERE id = ?", [tx_id])
+        with Database(get_db_path(), read_only=False) as db:
+            db.conn.execute("DELETE FROM portfolio_transactions WHERE id = ?", [tx_id])
         return {"status": "success", "message": f"Transaction {tx_id} deleted"}
     except Exception as e:
         logging.error(f"Error deleting transaction: {e}")

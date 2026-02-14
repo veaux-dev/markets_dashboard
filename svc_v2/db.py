@@ -9,22 +9,24 @@ from typing import Optional
 DEFAULT_DB_PATH = "data/markets.duckdb"
 
 class Database:
-    _instance = None
-    _lock = Lock()
+    def __init__(self, db_path: str = DEFAULT_DB_PATH, read_only: bool = False):
+        self._init_db(db_path, read_only)
 
-    def __new__(cls, db_path: str = DEFAULT_DB_PATH):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super(Database, cls).__new__(cls)
-                cls._instance._init_db(db_path)
-            return cls._instance
-
-    def _init_db(self, db_path: str):
+    def _init_db(self, db_path: str, read_only: bool):
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = duckdb.connect(str(self.db_path))
-        self._create_tables()
-        logging.info(f"🦆 DuckDB conectada en: {self.db_path}")
+        if not read_only:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self.conn = duckdb.connect(str(self.db_path), read_only=read_only)
+        if not read_only:
+            self._create_tables()
+        logging.info(f"🦆 DuckDB conectada en: {self.db_path} (RO={read_only})")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def _create_tables(self):
         """Inicializa el esquema de tablas si no existen."""
