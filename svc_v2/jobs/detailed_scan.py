@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 def main():
     print("\n🔬 MARKET DASHBOARD V2: Detailed Scan (Intraday) 🔬\n")
 
-    # ... (Carga de config)
+    # 1. Cargar Configuración
     try:
         cfg = load_settings()
     except Exception as e:
@@ -46,7 +46,6 @@ def main():
     vip_tickers = list(all_holdings.union(set(static_tickers + dynamic_tickers)))
     
     # B) Universo Completo (Para Descarga y Análisis)
-    # Importamos loaders para replicar la lógica de broad_scan
     from svc_v2.universe_loader import get_sp500_tickers, get_nasdaq100_tickers, get_key_etfs_indices
     
     sp500 = [t[0] for t in get_sp500_tickers()]
@@ -57,71 +56,60 @@ def main():
     print(f"   -> Universo Completo: {len(full_universe)} activos.")
     print(f"   -> Activos VIP (Alertas): {len(vip_tickers)}")
 
+    # Obtener mapa de nombres para el reporte
+    try:
+        q_names = f"SELECT ticker, name FROM ticker_metadata WHERE ticker IN ({','.join([f"'{t}'" for t in vip_tickers])})"
+        name_map = db.conn.execute(q_names).df().set_index('ticker')['name'].to_dict()
+    except Exception:
+        name_map = {}
+
     # 4. Loop por Timeframe Intradía
-    # Aseguramos que solo bajamos intradía aqui (1h, 15m)
     timeframes = [tf for tf in cfg.data.timeframes.get('detailed', ['1h', '15m']) if tf != '1d']
     
     for tf in timeframes:
         print(f"\n⏱️  Timeframe: {tf}")
         
-        # A) Sync TODO el universo
+        # A) Sync & Analyze TODO el universo
         col.sync_tickers(full_universe, [tf])
+        alz.analyze_tickers(full_universe, [tf], force_full=(os.environ.get("FORCE_FULL_SCAN") == "1"))
         
-        # B) Analyze TODO el universo
-        force_full = os.environ.get("FORCE_FULL_SCAN") == "1"
-        alz.analyze_tickers(full_universe, [tf], force_full=force_full)
-        
-        # C) Screen (Alertas solo para VIP)
-        print(f"   🔎 Evaluando Alertas VIP:")
+        # B) Screen & Batch Notif
+        print(f"   🔎 Evaluando Alertas VIP...")
         strategies = {
-            "BUY_BOUNCE": "Rebote / Sobrevendido",
-            "SELL_STRENGTH": "Euforia / Sobrecompra",
-            "BUY_TREND": "Tendencia Fuerte"
+            "BUY_BOUNCE": "Rebote",
+            "SELL_STRENGTH": "Euforia",
+            "BUY_TREND": "Trend"
         }
         
+        batch_holdings = []
+        batch_market = []
+
         for strat_key, label in strategies.items():
             candidates = eng.run_screen(strat_key, timeframe=tf)
-            # Solo nos interesan alertas de los que están en VIP
+            # Solo VIPs
             candidates = candidates[candidates['ticker'].isin(vip_tickers)]
             
-            if candidates.empty:
-                continue
+            for _, row in candidates.iterrows():
+                signal_data = {
+                    'ticker': row['ticker'],
+                    'strategy': strat_key,
+                    'price': row['close'],
+                    'name': name_map.get(row['ticker'], row['ticker'])
+                }
+                
+                if row['ticker'] in all_holdings:
+                    batch_holdings.append(signal_data)
+                else:
+                    batch_market.append(signal_data)
 
-            # ... resto de la lógica de notificación ...
-            
-            if candidates.empty:
-                continue
-
-            # Enriquecer
-            candidates['name'] = candidates['ticker'].map(name_map).fillna(candidates['ticker'])
-            candidates['name'] = candidates['name'].astype(str).str.slice(0, 20)
-            
-            # Separar Holdings vs Resto
-            is_holding_mask = candidates['ticker'].isin(all_holdings)
-            df_holdings = candidates[is_holding_mask]
-            df_market = candidates[~is_holding_mask]
-
-            if not df_holdings.empty:
-                print(f"\n   🚨 {label} [MY HOLDINGS] ({len(df_holdings)})")
-                for _, row in df_holdings.iterrows():
-                    notif.notify_strategy_hit(
-                        ticker=row['ticker'], 
-                        strategy=strat_key, 
-                        timeframe=tf, 
-                        price=row['close'],
-                        extra_info=f"⚠️ Holding Position: {row['name']}"
-                    )
-            
-            if not df_market.empty:
-                print(f"\n   🔭 {label} [MARKET] ({len(df_market)})")
-                for _, row in df_market.iterrows():
-                    notif.notify_strategy_hit(
-                        ticker=row['ticker'], 
-                        strategy=strat_key, 
-                        timeframe=tf, 
-                        price=row['close'],
-                        extra_info=f"Candidate from Watchlist: {row['name']}"
-                    )
+        # Enviar Batch Consolidado
+        if batch_holdings:
+            print(f"   🚨 Enviando batch de {len(batch_holdings)} alertas de HOLDINGS...")
+            notif.notify_batch(batch_holdings, title_prefix="🚨 MY HOLDINGS", timeframe=tf)
+        
+        if batch_market:
+            print(f"   🔭 Enviando batch de {len(batch_market)} alertas de MARKET...")
+            notif.notify_batch(batch_market, title_prefix="🔭 MARKET SCAN", timeframe=tf)
 
     print("\n✅ Detailed Scan Finalizado.")
     db.close()

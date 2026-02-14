@@ -84,6 +84,52 @@ class Notifier:
         except Exception as e:
             logging.error(f"❌ Error crítico en Notifier: {e}")
 
+    def notify_batch(self, signals: list, title_prefix: str = "", timeframe: str = ""):
+        """
+        Envía un lote de señales en un solo mensaje de Discord.
+        signals: list of dicts {ticker, strategy, price, name}
+        """
+        if not self.enabled or not signals:
+            return
+
+        # 1. Filtrar Spam de cada señal individualmente antes de agrupar
+        valid_signals = []
+        for s in signals:
+            if self.should_notify(s['ticker'], s['strategy'], timeframe):
+                # Regla de SELL: solo si tengo posición
+                if "SELL" in s['strategy'] and not self.is_holding(s['ticker']):
+                    continue
+                valid_signals.append(s)
+        
+        if not valid_signals:
+            return
+
+        # 2. Formatear mensaje consolidado
+        msg = f"📡 **{title_prefix} - BATCH ALERTS** ({timeframe})\n"
+        msg += "```\n"
+        msg += f"{'TICKER':<10} | {'STRAT':<12} | {'PRICE':<8}\n"
+        msg += "-" * 35 + "\n"
+        
+        for s in valid_signals:
+            msg += f"{s['ticker']:<10} | {s['strategy']:<12} | {s['price']:>8.2f}\n"
+        
+        msg += "```\n"
+        msg += f"[🔗 Open Dashboard](http://192.168.50.227:8000/)"
+
+        # 3. Enviar y Loguear cada una
+        try:
+            payload = {"content": msg}
+            response = requests.post(self.discord_url, json=payload, timeout=10)
+            
+            if response.status_code in [200, 204]:
+                logging.info(f"✅ Batch de {len(valid_signals)} notificaciones enviado.")
+                for s in valid_signals:
+                    self.log_notification(s['ticker'], s['strategy'], timeframe, s['price'])
+            else:
+                logging.error(f"❌ Error enviando Batch a Discord ({response.status_code})")
+        except Exception as e:
+            logging.error(f"❌ Error crítico en Notifier Batch: {e}")
+
     def notify_strategy_hit(self, ticker: str, strategy: str, timeframe: str, price: float, extra_info: str = ""):
         """Formatea y envía una alerta de estrategia."""
         emoji = "🟢" if "BUY" in strategy else "🔴" if "SELL" in strategy else "⚪"
