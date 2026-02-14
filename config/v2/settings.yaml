@@ -21,6 +21,8 @@ universe:
   # Tickers que NO vienen en los índices automáticos (ETFs, Índices, Favoritos Manuales)
   # Estos se sumarán al barrido diario.
   watchlist:
+    # Forex
+    - "USDMXN=X"
     # Indices & ETFs USA
     - "^GSPC" # S&P 500 Index
     - "^NDX"  # Nasdaq 100 Index

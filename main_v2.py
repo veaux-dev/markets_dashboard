@@ -40,11 +40,19 @@ class Daemon:
         logging.info("🛑 Recibida señal de parada. Cerrando Daemon...")
         self.running = False
 
-    def run_job_subprocess(self, module_name: str, job_name: str):
+    def is_weekend(self) -> bool:
+        """Devuelve True si hoy es Sábado (5) o Domingo (6)."""
+        return datetime.now().weekday() >= 5
+
+    def run_job_subprocess(self, module_name: str, job_name: str, force: bool = False):
         """
         Ejecuta un job en un subproceso aislado para garantizar
         limpieza total de memoria al terminar.
         """
+        if self.is_weekend() and not force:
+            logging.info(f"⏸️ Job {job_name} omitido: Fin de semana.")
+            return
+
         logging.info(f"🚀 Iniciando Job: {job_name} ({module_name})...")
         start_time = time.time()
         
@@ -216,13 +224,12 @@ class Daemon:
                 ds_cfg = cfg.scheduler.jobs['detailed_scan']
                 interval = ds_cfg.interval_min or 15
                 
-                # Función wrapper para checar market hours
-                def job_wrapper():
-                    # Aquí iría la validación de Market Hours
-                    self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan")
-
                 logging.info(f"   -> Programando Detailed Scan cada {interval} min")
-                schedule.every(interval).minutes.do(job_wrapper)
+                schedule.every(interval).minutes.do(
+                    self.run_job_subprocess,
+                    module_name="svc_v2.jobs.detailed_scan",
+                    job_name="Detailed Scan"
+                )
 
             self.jobs_configured = True
             
@@ -248,8 +255,8 @@ class Daemon:
             logging.info("🆕 Fresh Install detected. Running sequential full scans...")
             # Set environment variable to force full calculation in the subprocesses
             os.environ["FORCE_FULL_SCAN"] = "1"
-            self.run_job_subprocess("svc_v2.jobs.broad_scan", "Broad Scan (Bootstrap)")
-            self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan (Bootstrap)")
+            self.run_job_subprocess("svc_v2.jobs.broad_scan", "Broad Scan (Bootstrap)", force=True)
+            self.run_job_subprocess("svc_v2.jobs.detailed_scan", "Detailed Scan (Bootstrap)", force=True)
             del os.environ["FORCE_FULL_SCAN"]
         else:
             # Normal startup: check if we missed a scheduled run

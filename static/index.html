@@ -205,9 +205,70 @@
         </div>
       </div>
 
-      <div class="header-row" style="margin-top: 20px; border-bottom: none; margin-bottom: 0;">
-        <h2 style="font-family:'Space Grotesk', sans-serif; font-size: 20px; color: var(--accent);">💼 Portfolio Holdings</h2>
+      <div class="header-row" style="margin-top: 20px; border-bottom: none; margin-bottom: 0; display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="font-family:'Space Grotesk', sans-serif; font-size: 20px; color: var(--accent); margin:0;">💼 Portfolio Holdings</h2>
+        <div style="display:flex; gap:10px;">
+            <button class="btn-load" id="btnShowAddTx" style="border-color:var(--accent); color:var(--accent)">+ Add Transaction</button>
+            <button class="btn-load" id="btnShowHistory">📜 History</button>
+        </div>
       </div>
+
+      <!-- Add Transaction Form (Hidden by default) -->
+      <div id="addTxForm" style="display:none; margin-top:15px; padding:20px; background:var(--card); border:1px solid var(--accent); border-radius:12px;">
+        <h3 style="margin-top:0; font-size:16px; color:var(--accent);">New Transaction</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:15px;">
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Ticker</label>
+                <input class="ticker-input" id="txTicker" placeholder="AAPL" style="width:100%">
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Side</label>
+                <select class="ticker-input" id="txSide" style="width:100%; height:37px;">
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                    <option value="DIVIDEND">DIVIDEND</option>
+                    <option value="SPLIT">SPLIT</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Quantity</label>
+                <input type="number" step="any" class="ticker-input" id="txQty" placeholder="0.0" style="width:100%">
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Price</label>
+                <input type="number" step="any" class="ticker-input" id="txPrice" placeholder="0.0" style="width:100%">
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Currency</label>
+                <select class="ticker-input" id="txCurr" style="width:100%; height:37px;">
+                    <option value="MXN">MXN</option>
+                    <option value="USD">USD</option>
+                </select>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; gap:15px; align-items:flex-end;">
+            <div style="flex-grow:1">
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Notes (Optional)</label>
+                <input class="ticker-input" id="txNotes" placeholder="Reason for trade..." style="width:100%">
+            </div>
+            <button class="btn-load" id="btnSaveTx" style="background:var(--accent); color:var(--bg-1); font-weight:700; border:none; height:37px; padding:0 30px;">Save Transaction</button>
+            <button class="btn-load" id="btnCancelTx" style="height:37px;">Cancel</button>
+        </div>
+      </div>
+
+      <!-- History Modal (Simple Overlay) -->
+      <div id="historyOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; padding:40px;">
+        <div style="max-width:900px; margin:0 auto; background:var(--bg-2); border:1px solid var(--stroke); border-radius:15px; height:80vh; display:flex; flex-direction:column; overflow:hidden;">
+            <div style="padding:20px; border-bottom:1px solid var(--stroke); display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0; font-family:'Space Grotesk';">Transaction History</h2>
+                <button class="btn-load" id="btnCloseHistory">Close</button>
+            </div>
+            <div id="historyContent" style="flex-grow:1; overflow-y:auto; padding:20px;">
+                <!-- Table goes here -->
+            </div>
+        </div>
+      </div>
+
       <div id="portfolioContainer">
         <div class="loading">Loading positions...</div>
       </div>
@@ -246,6 +307,126 @@
       const btnGo = document.getElementById("btnGo");
       const btnRefreshList = document.getElementById("btnRefreshList");
       const btnRecalc = document.getElementById("btnRecalc");
+
+      // UI Portfolio Controls
+      const btnShowAddTx = document.getElementById("btnShowAddTx");
+      const btnShowHistory = document.getElementById("btnShowHistory");
+      const addTxForm = document.getElementById("addTxForm");
+      const btnCancelTx = document.getElementById("btnCancelTx");
+      const btnSaveTx = document.getElementById("btnSaveTx");
+      const historyOverlay = document.getElementById("historyOverlay");
+      const btnCloseHistory = document.getElementById("btnCloseHistory");
+      const historyContent = document.getElementById("historyContent");
+
+      // Form Fields
+      const txTicker = document.getElementById("txTicker");
+      const txSide = document.getElementById("txSide");
+      const txQty = document.getElementById("txQty");
+      const txPrice = document.getElementById("txPrice");
+      const txCurr = document.getElementById("txCurr");
+      const txNotes = document.getElementById("txNotes");
+
+      btnShowAddTx.onclick = () => { addTxForm.style.display = 'block'; txTicker.focus(); };
+      btnCancelTx.onclick = () => { addTxForm.style.display = 'none'; };
+      
+      btnSaveTx.onclick = async () => {
+          const payload = {
+              ticker: txTicker.value.trim().toUpperCase(),
+              side: txSide.value,
+              qty: parseFloat(txQty.value),
+              price: parseFloat(txPrice.value),
+              currency: txCurr.value,
+              notes: txNotes.value.trim() || null
+          };
+
+          if(!payload.ticker || isNaN(payload.qty) || isNaN(payload.price)) {
+              alert("Please fill required fields (Ticker, Qty, Price)");
+              return;
+          }
+
+          try {
+              const resp = await fetch('/api/v2/portfolio/transaction', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify(payload)
+              });
+              if(!resp.ok) throw new Error("API Error");
+              
+              addTxForm.style.display = 'none';
+              // Reset fields
+              txTicker.value = ''; txQty.value = ''; txPrice.value = ''; txNotes.value = '';
+              
+              loadDashboard(); // Reload everything
+          } catch(e) {
+              alert("Error saving transaction: " + e.message);
+          }
+      };
+
+      btnShowHistory.onclick = async () => {
+          historyOverlay.style.display = 'block';
+          loadHistory();
+      };
+      
+      btnCloseHistory.onclick = () => { historyOverlay.style.display = 'none'; };
+
+      async function loadHistory() {
+          historyContent.innerHTML = '<div class="loading">Loading history...</div>';
+          try {
+              const resp = await fetch('/api/v2/portfolio/transactions');
+              const txs = await resp.json();
+              
+              if(!txs.length) {
+                  historyContent.innerHTML = '<div style="padding:40px; text-align:center; color:var(--muted)">No transactions found.</div>';
+                  return;
+              }
+
+              let html = `<table style="font-size:12px;">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Ticker</th>
+                    <th>Side</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+              
+              txs.forEach(tx => {
+                  const dateStr = new Date(tx.timestamp).toLocaleString();
+                  const sideCls = tx.side === 'BUY' ? 'val-up' : (tx.side === 'SELL' ? 'val-down' : 'val-neutral');
+                  html += `
+                    <tr>
+                      <td class="meta-cell">${dateStr}</td>
+                      <td style="font-weight:700; color:var(--accent)">${tx.ticker}</td>
+                      <td class="${sideCls}" style="font-weight:700">${tx.side}</td>
+                      <td>${tx.qty}</td>
+                      <td>${tx.currency === 'USD' ? '$' : ''}${tx.price.toFixed(2)} ${tx.currency}</td>
+                      <td class="meta-cell">${tx.notes || ''}</td>
+                      <td><button onclick="deleteTx(${tx.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:16px;" title="Delete">🗑</button></td>
+                    </tr>
+                  `;
+              });
+              html += `</tbody></table>`;
+              historyContent.innerHTML = html;
+          } catch(e) {
+              historyContent.innerHTML = `<div class="val-down">Error: ${e.message}</div>`;
+          }
+      }
+
+      window.deleteTx = async (id) => {
+          if(!confirm(`Delete transaction #${id}?`)) return;
+          try {
+              const resp = await fetch(`/api/v2/portfolio/transaction/${id}`, {method: 'DELETE'});
+              if(!resp.ok) throw new Error("API Error");
+              loadHistory();
+              loadPortfolio(); // Update the main view too
+          } catch(e) {
+              alert("Error deleting: " + e.message);
+          }
+      };
 
       let currentData = [];
       let currentPortfolio = [];
@@ -459,34 +640,33 @@
                 <th class="sortable" onclick="sortData('ticker')">Ticker</th>
                 <th class="sortable" onclick="sortData('strategies')">Signal / Tags</th>
                 <th class="sortable" onclick="sortData('close')">Price</th>
-                <th class="sortable" onclick="sortData('chg_pct')">Chg (1D)</th>
+                <th class="sortable" onclick="sortData('chg_1d')">1D %</th>
+                <th class="sortable" onclick="sortData('chg_2d')">2D %</th>
+                <th class="sortable" onclick="sortData('chg_3d')">3D %</th>
+                <th class="sortable" onclick="sortData('chg_fri')">vs Fri</th>
                 <th class="sortable" onclick="sortData('rsi')">RSI</th>
                 <th class="sortable hide-mobile" onclick="sortData('adx')">ADX</th>
                 <th class="sortable hide-mobile" onclick="sortData('vol_k')">Vol K</th>
-                <th class="sortable hide-mobile" onclick="sortData('added_at')">Added</th>
               </tr>
             </thead>
             <tbody>
         `;
         
         items.forEach(item => {
-          const chg = item.chg_pct || 0;
-          const chgClass = chg >= 0 ? 'val-up' : 'val-down';
+          const getChgCls = (v) => (v >= 0 ? 'val-up' : 'val-down');
+          const fmtChg = (v) => v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : '—';
+
           const rsiVal = item.rsi != null ? item.rsi.toFixed(1) : '—';
           const adxVal = item.adx != null ? item.adx.toFixed(1) : '—';
           const volVal = item.vol_k != null ? `x${item.vol_k.toFixed(2)}` : '—';
           const priceVal = item.close != null ? item.close.toFixed(2) : '—';
-          const dateAdded = item.added_at ? item.added_at.split(' ')[0] : '';
           const holdingClass = item.is_holding ? 'is-holding' : '';
           
           // Construir Badges
           let badgesHtml = '';
-          
-          // 1. Tags de Pertenencia
           if (item.is_holding) badgesHtml += `<span class="badge-strat" style="border-color:var(--accent); color:var(--accent)">💼 HOLDING</span>`;
           if (item.is_favourite) badgesHtml += `<span class="badge-strat" style="border-color:var(--accent-2); color:var(--accent-2)">⭐ FAV</span>`;
           
-          // 2. Estrategias (Split por coma)
           if (item.strategies) {
               const strats = item.strategies.split(', ');
               strats.forEach(s => {
@@ -496,8 +676,6 @@
                   badgesHtml += `<span class="badge-strat" style="background:rgba(255,255,255,0.05); border-color:${color}; color:${color}">${s}</span>`;
               });
           }
-
-          // Si no tiene nada, poner tag de Watchlist genérico
           if (!badgesHtml) badgesHtml = `<span class="badge-strat">WATCHLIST</span>`;
           
           html += `
@@ -506,15 +684,17 @@
               <td>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center">
                     ${badgesHtml}
-                    <span class="meta-cell" style="margin-left:8px">${item.name || ''}</span>
+                    <span class="meta-cell" style="margin-left:8px; font-size:11px">${item.name || ''}</span>
                 </div>
               </td>
               <td style="font-weight:600">${priceVal}</td>
-              <td class="${chgClass}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</td>
+              <td class="${getChgCls(item.chg_1d)}">${fmtChg(item.chg_1d)}</td>
+              <td class="${getChgCls(item.chg_2d)}">${fmtChg(item.chg_2d)}</td>
+              <td class="${getChgCls(item.chg_3d)}">${fmtChg(item.chg_3d)}</td>
+              <td class="${getChgCls(item.chg_fri)}" style="border-left:1px solid var(--stroke)">${fmtChg(item.chg_fri)}</td>
               <td class="${getRsiClass(item.rsi)}">${rsiVal}</td>
               <td class="hide-mobile ${item.adx > 25 ? 'val-up' : 'val-neutral'}">${adxVal}</td>
               <td class="hide-mobile ${item.vol_k > 1.5 ? 'val-up' : 'val-neutral'}">${volVal}</td>
-              <td class="meta-cell hide-mobile">${dateAdded}</td>
             </tr>
           `;
         });

@@ -46,8 +46,12 @@
 - [x] **Smart Alerting:** Alertas segmentadas (Holdings vs Market) en tiempo real.
 
 ## 🅿️ Parking Lot / Backlog
-- [x] **History Repair:** Script `force_full_sync.py` con opción `--clean`.
+- [x] **History Repair:** Script `force_full_sync.py` con option `--clean`.
 - [x] **Portfolio CLI:** Gestión de transacciones vía terminal.
 - [x] **Local Dev Tools:** `create_test_db.py` y `refresh_watchlist.py`.
 - [ ] **Portfolio Editor:** CRUD de transacciones desde la UI web.
 - [ ] **Performance:** Virtualización de tablas si el universo crece > 500 tickers.
+- [ ] **Log Reader:** Pestaña en la UI para ver logs del daemon en tiempo real via API.
+- [ ] **DB Explorer:** Vista de salud para inspeccionar conteos de tablas y últimos timestamps.
+- [ ] **Alert Batching:** Agrupar notificaciones intradía (1 min buffer) para enviar un solo mensaje por canal en lugar de pings individuales.
+- [ ] **Sorting Rework:** Refinar el ordenamiento por defecto del screener (prioridad a Bias, Momentum y volumen sobre orden alfabético).

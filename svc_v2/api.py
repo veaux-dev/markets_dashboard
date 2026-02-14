@@ -13,6 +13,7 @@ import sys
 import os
 from datetime import timezone
 from svc_v2.config_loader import load_settings
+from svc_v2.db import Database
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
@@ -32,13 +33,26 @@ app.add_middleware(
 )
 
 def get_db_path():
-    # Permitir override via Env Var para testeo local
+    # 1. Prioridad: Env Var (Override local/dev)
     override = os.environ.get("DB_PATH_OVERRIDE")
     if override:
         return override
         
-    cfg = load_settings()
-    return f"data/{cfg.system.db_filename}"
+    # 2. Prioridad: Ruta de producción conocida (NAS)
+    prod_path = "/mnt/Data/Markets/Dashboard/data_v2/markets.duckdb"
+    if Path(prod_path).exists():
+        return prod_path
+
+    # 3. Fallback: Configuración de settings o default relativo
+    try:
+        cfg = load_settings()
+        config_path = f"data/{cfg.system.db_filename}"
+        if Path(config_path).exists():
+            return config_path
+    except:
+        pass
+
+    return "data/markets.duckdb"
 
 def query_db(query: str, params: list = None) -> pd.DataFrame:
     """Helper para consultar DuckDB en modo lectura."""
@@ -52,7 +66,7 @@ def query_db(query: str, params: list = None) -> pd.DataFrame:
         logging.error(f"DB Query Error: {e}")
         return pd.DataFrame()
 
-# --- Modelos de Respuesta ---
+# --- Modelos de Datos ---
 class HealthCheck(BaseModel):
     status: str
     db_connected: bool
@@ -60,6 +74,16 @@ class HealthCheck(BaseModel):
 class TaskResponse(BaseModel):
     message: str
     task_id: str = "background"
+
+class TransactionCreate(BaseModel):
+    ticker: str
+    side: str  # 'BUY', 'SELL', 'DIVIDEND', 'SPLIT'
+    qty: float
+    price: float
+    fees: Optional[float] = 0.0
+    currency: Optional[str] = "MXN"
+    notes: Optional[str] = None
+    timestamp: Optional[str] = None # YYYY-MM-DD HH:MM:SS
 
 def run_script(script_path: str):
     """Helper para ejecutar scripts de tools/ en background."""
@@ -95,82 +119,123 @@ def recalc_indicators(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_script, script)
     return {"message": "Indicator recalculation triggered. This may take a while."}
 
-# ...
+# --- Portfolio CRUD ---
 
-@app.get("/")
-def root():
-    return RedirectResponse(url="/static/index.html")
+@app.get("/api/v2/portfolio/transactions")
+def get_transactions(limit: int = 100):
+    """Retorna el historial de transacciones."""
+    query = f"SELECT * FROM portfolio_transactions ORDER BY timestamp DESC LIMIT {limit}"
+    df = query_db(query)
+    if df.empty:
+        return []
+    # Limpieza para JSON
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.astype(object)
+    df = df.where(pd.notnull(df), None)
+    return df.to_dict(orient="records")
 
-@app.get("/health", response_model=HealthCheck)
-def health_check():
-    """Verifica si la API y la DB están vivas."""
+@app.post("/api/v2/portfolio/transaction")
+def add_transaction(tx: TransactionCreate):
+    """Registra una nueva transacción en la DB."""
     try:
-        df = query_db("SELECT 1")
-        return {"status": "ok", "db_connected": not df.empty}
-    except:
-        return {"status": "error", "db_connected": False}
+        db = Database(get_db_path())
+        db.add_transaction(
+            ticker=tx.ticker.upper(),
+            side=tx.side.upper(),
+            qty=tx.qty,
+            price=tx.price,
+            fees=tx.fees,
+            notes=tx.notes,
+            timestamp=tx.timestamp,
+            currency=tx.currency.upper()
+        )
+        return {"status": "success", "message": f"Transaction recorded for {tx.ticker}"}
+    except Exception as e:
+        logging.error(f"Error adding transaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v2/screener")
-def get_screener_results():
+@app.delete("/api/v2/portfolio/transaction/{tx_id}")
+def delete_transaction(tx_id: int):
+    """Elimina una transacción por ID."""
+    try:
+        # Aquí abrimos conexión para escritura (no usamos query_db que es readonly)
+        with duckdb.connect(get_db_path()) as con:
+            con.execute("DELETE FROM portfolio_transactions WHERE id = ?", [tx_id])
+        return {"status": "success", "message": f"Transaction {tx_id} deleted"}
+    except Exception as e:
+        logging.error(f"Error deleting transaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v2/portfolio")
+def get_portfolio():
     """
     Retorna los candidatos de la dynamic_watchlist MÁS los holdings y watchlist manual.
+    Incluye variaciones de precio multitemporales (1D, 2D, 3D, vs Viernes Ant).
     """
     try:
         cfg = load_settings()
         
         # 1. Obtener tickers de interés manual
-        holdings = []
-        for h in cfg.portfolios.holdings:
-            if hasattr(h, 'ticker'): holdings.append(h.ticker)
-            else: holdings.append(str(h))
-        
+        holdings = [h.ticker if hasattr(h, 'ticker') else str(h) for h in cfg.portfolios.holdings]
         manual_watchlist = cfg.universe.watchlist
         all_manual = list(set(holdings + manual_watchlist))
         
-        # 2. Construir la parte manual de la query solo si hay tickers
+        # 2. Construir la parte manual de la query
         manual_subquery = ""
         if all_manual:
             manual_tickers_sql = ",".join([f"('{t}')" for t in all_manual])
             manual_subquery = f"""
                 UNION
-                -- Tickers manuales que NO están en la dynamic_watchlist
                 SELECT ticker, NULL as reason, now() as added_at
                 FROM (VALUES {manual_tickers_sql}) AS t(ticker)
                 WHERE ticker NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
             """
         
+        # Query Avanzada: Window functions para deltas
         query = f"""
             WITH all_targets AS (
                 SELECT ticker, reason, added_at FROM dynamic_watchlist WHERE expires_at > now()
                 {manual_subquery}
             ),
-            latest_data AS (
+            price_history AS (
                 SELECT 
-                    i.ticker,
-                    i.rsi, 
-                    i.adx, 
-                    i.vol_k,
-                    i.chg_pct,
-                    o.close, 
-                    row_number() OVER (PARTITION BY i.ticker ORDER BY i.timestamp DESC) as rn
-                FROM indicators i
-                JOIN ohlcv o USING (ticker, timeframe, timestamp)
-                WHERE i.timeframe = '1d'
+                    ticker, timestamp, close,
+                    lag(close, 1) OVER (PARTITION BY ticker ORDER BY timestamp ASC) as prev_1,
+                    lag(close, 2) OVER (PARTITION BY ticker ORDER BY timestamp ASC) as prev_2,
+                    lag(close, 3) OVER (PARTITION BY ticker ORDER BY timestamp ASC) as prev_3,
+                    -- Buscar el último viernes: dayofweek=5 es Friday
+                    FIRST_VALUE(close) OVER (
+                        PARTITION BY ticker 
+                        ORDER BY CASE WHEN dayofweek(timestamp) = 5 THEN 0 ELSE 1 END, timestamp DESC
+                    ) as last_friday_close,
+                    row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
+                FROM ohlcv
+                WHERE timeframe = '1d'
+            ),
+            latest_ind AS (
+                SELECT 
+                    ticker, rsi, adx, vol_k,
+                    row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
+                FROM indicators
+                WHERE timeframe = '1d'
             )
             SELECT 
                 t.ticker, 
                 m.name, 
                 COALESCE(t.reason, '') as strategies, 
                 t.added_at,
-                d.close, 
-                d.chg_pct, 
-                d.rsi, 
-                d.adx, 
-                d.vol_k
+                p.close, 
+                ((p.close / p.prev_1) - 1) * 100 as chg_1d,
+                ((p.close / p.prev_2) - 1) * 100 as chg_2d,
+                ((p.close / p.prev_3) - 1) * 100 as chg_3d,
+                ((p.close / p.last_friday_close) - 1) * 100 as chg_fri,
+                i.rsi, 
+                i.adx, 
+                i.vol_k
             FROM all_targets t
             LEFT JOIN ticker_metadata m ON t.ticker = m.ticker
-            LEFT JOIN latest_data d ON t.ticker = d.ticker AND d.rn = 1
-            -- Default Sorting: Strategies DESC (Signals First), then Ticker ASC
+            LEFT JOIN price_history p ON t.ticker = p.ticker AND p.rn = 1
+            LEFT JOIN latest_ind i ON t.ticker = i.ticker AND i.rn = 1
             ORDER BY 
                 CASE WHEN t.reason IS NOT NULL AND t.reason != '' THEN 0 ELSE 1 END,
                 t.ticker ASC
@@ -179,22 +244,15 @@ def get_screener_results():
         if df.empty:
             return []
         
-        # Flags de pertenencia
+        # Flags
         df['is_holding'] = df['ticker'].isin(holdings)
         df['is_favourite'] = df['ticker'].isin(manual_watchlist)
         
-        # FILTRO: Eliminar los que solo son SELL_STRENGTH y no son ni holding ni fav
-        mask_to_remove = (df['strategies'] == 'SELL_STRENGTH') & (~df['is_holding']) & (~df['is_favourite'])
-        df = df[~mask_to_remove]
-        
-        # LIMPIEZA NUCLEAR PARA JSON (V2):
+        # Limpieza
         df = df.replace([np.inf, -np.inf], np.nan)
-        # Forzar conversión a object para que acepte None
         df = df.astype(object)
         df = df.where(pd.notnull(df), None)
         
-        # Convertir fechas
-        df['added_at'] = df['added_at'].astype(str)
         return df.to_dict(orient="records")
     except Exception as e:
         logging.error(f"Error en get_screener_results: {e}")
