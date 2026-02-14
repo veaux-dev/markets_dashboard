@@ -99,6 +99,19 @@ def run_script(script_path: str):
 
 from fastapi.responses import RedirectResponse
 
+@app.get("/")
+def root():
+    return RedirectResponse(url="/static/index.html")
+
+@app.get("/health", response_model=HealthCheck)
+def health_check():
+    """Verifica si la API y la DB están vivas."""
+    try:
+        df = query_db("SELECT 1")
+        return {"status": "ok", "db_connected": not df.empty}
+    except:
+        return {"status": "error", "db_connected": False}
+
 @app.post("/api/v2/system/refresh-watchlist", response_model=TaskResponse)
 def refresh_watchlist(background_tasks: BackgroundTasks):
     """Ejecuta tools/refresh_watchlist.py para actualizar candidatos sin bajar datos."""

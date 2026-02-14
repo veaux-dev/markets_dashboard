@@ -146,49 +146,43 @@ class Database:
             );
         """)
 
-        # 7. Vista PORTFOLIO HOLDINGS (Calculada con lógica FIFO para Cost Basis)
+        # 7. Vista PORTFOLIO HOLDINGS (Lógica FIFO Robusta)
         self.conn.execute("""
             CREATE OR REPLACE VIEW view_portfolio_holdings AS
-            WITH current_inventory AS (
-                SELECT 
-                    ticker, 
-                    SUM(CASE WHEN side = 'BUY' THEN qty WHEN side = 'SELL' THEN -qty ELSE 0 END) as net_qty
+            WITH total_sold AS (
+                SELECT ticker, SUM(qty) as sold_qty
                 FROM portfolio_transactions
+                WHERE side = 'SELL'
                 GROUP BY ticker
-                HAVING SUM(CASE WHEN side = 'BUY' THEN qty WHEN side = 'SELL' THEN -qty ELSE 0 END) > 0
             ),
-            buys_ranked AS (
+            buy_history AS (
                 SELECT 
-                    ticker,
-                    qty,
-                    price,
-                    timestamp,
-                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp DESC, id DESC) as cumulative_qty
+                    ticker, qty, price, timestamp, id,
+                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp ASC, id ASC) - qty as prev_cum_qty,
+                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp ASC, id ASC) as cum_qty
                 FROM portfolio_transactions
                 WHERE side = 'BUY'
             ),
-            matched_buys AS (
+            remaining_buys AS (
                 SELECT 
                     b.ticker,
-                    b.qty,
                     b.price,
-                    b.cumulative_qty,
-                    i.net_qty,
+                    -- Cantidad que queda de este lote después de descontar ventas totales
                     CASE 
-                        WHEN b.cumulative_qty <= i.net_qty THEN b.qty
-                        WHEN b.cumulative_qty - b.qty < i.net_qty THEN i.net_qty - (b.cumulative_qty - b.qty)
-                        ELSE 0
-                    END as effective_qty
-                FROM buys_ranked b
-                JOIN current_inventory i ON b.ticker = i.ticker
+                        WHEN b.cum_qty <= COALESCE(s.sold_qty, 0) THEN 0
+                        WHEN b.prev_cum_qty >= COALESCE(s.sold_qty, 0) THEN b.qty
+                        ELSE b.cum_qty - COALESCE(s.sold_qty, 0)
+                    END as rem_qty
+                FROM buy_history b
+                LEFT JOIN total_sold s ON b.ticker = s.ticker
             )
             SELECT 
                 ticker,
-                net_qty as qty,
-                SUM(effective_qty * price) / net_qty as avg_buy_price
-            FROM matched_buys
-            WHERE effective_qty > 0
-            GROUP BY ticker, net_qty;
+                SUM(rem_qty) as qty,
+                SUM(rem_qty * price) / NULLIF(SUM(rem_qty), 0) as avg_buy_price
+            FROM remaining_buys
+            GROUP BY ticker
+            HAVING SUM(rem_qty) > 0;
         """)
 
     # --------------------------------------------------------------------------
