@@ -265,53 +265,116 @@ def get_screener_results():
 @app.get("/api/v2/portfolio")
 def get_portfolio():
     """
-    Retorna las posiciones actuales del usuario con P&L calculado.
+    Retorna las posiciones actuales del usuario con P&L calculado (Lógica FIFO en memoria).
     """
     try:
-        # 1. Obtener tipo de cambio USDMXN
+        # 1. Obtener datos base: FX y Transacciones Crudas
         fx_df = query_db("SELECT close FROM ohlcv WHERE ticker = 'USDMXN=X' AND timeframe = '1d' ORDER BY timestamp DESC LIMIT 1")
-        fx_rate = fx_df.iloc[0]['close'] if not fx_df.empty else 20.0 # Fallback seguro
+        fx_rate = fx_df.iloc[0]['close'] if not fx_df.empty else 20.0
         
-        # 2. Query que une la vista de holdings con precios actuales y señales
-        query = """
-            WITH latest_prices AS (
-                SELECT ticker, close, 
-                       row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
-                FROM ohlcv
-                WHERE timeframe = '1d'
-            ),
-            active_signals AS (
-                SELECT ticker, reason as strategies
-                FROM dynamic_watchlist
-                WHERE expires_at > now()
-            )
-            SELECT 
-                h.ticker,
-                h.qty,
-                h.avg_buy_price,
-                p.close as current_price,
-                m.name,
-                COALESCE(s.strategies, '') as strategies,
-                'MXN' as currency -- Default, idealmente debería venir de metadata o inferencia
-            FROM view_portfolio_holdings h
-            LEFT JOIN latest_prices p ON h.ticker = p.ticker AND p.rn = 1
-            LEFT JOIN ticker_metadata m ON h.ticker = m.ticker
-            LEFT JOIN active_signals s ON h.ticker = s.ticker
-            ORDER BY h.ticker
-        """
-        df = query_db(query)
-        if df.empty:
+        # Leemos TODAS las transacciones ordenadas cronológicamente
+        tx_df = query_db("SELECT ticker, side, qty, price, currency FROM portfolio_transactions ORDER BY timestamp ASC, id ASC")
+        
+        if tx_df.empty:
             return {"items": [], "totals": {}}
+
+        # 2. Algoritmo FIFO para calcular Holdings y Avg Price
+        portfolio_state = {}  # {ticker: {'batches': [{'qty': float, 'price': float}], 'currency': str}}
+
+        for _, row in tx_df.iterrows():
+            ticker = row['ticker']
+            side = row['side']
+            qty = float(row['qty'])
+            price = float(row['price'])
+            curr = row['currency']
+
+            if ticker not in portfolio_state:
+                portfolio_state[ticker] = {'batches': [], 'currency': curr}
+
+            if side == 'BUY':
+                portfolio_state[ticker]['batches'].append({'qty': qty, 'price': price})
+                # Actualizamos moneda por si acaso (asumimos consistencia por ticker)
+                portfolio_state[ticker]['currency'] = curr
             
-        # Inferencia de divisa (Temporal hasta tener columna en DB o Metadata)
-        # Asumimos que tickers con "." (MX) son MXN, resto USD.
-        # Excepción: USDMXN=X es FX.
-        def infer_currency(row):
-            if ".MX" in row['ticker']: return "MXN"
-            if row['ticker'] == "USDMXN=X": return "MXN"
-            return "USD"
+            elif side == 'SELL':
+                qty_to_sell = qty
+                batches = portfolio_state[ticker]['batches']
+                
+                while qty_to_sell > 0 and batches:
+                    current_batch = batches[0]
+                    
+                    if current_batch['qty'] <= qty_to_sell:
+                        # Consumimos todo el lote
+                        qty_to_sell -= current_batch['qty']
+                        batches.pop(0)
+                    else:
+                        # Consumimos parcial
+                        current_batch['qty'] -= qty_to_sell
+                        qty_to_sell = 0
+        
+        # 3. Reconstruir DataFrame de Holdings Activos
+        active_holdings = []
+        for ticker, data in portfolio_state.items():
+            batches = data['batches']
+            total_qty = sum(b['qty'] for b in batches)
             
-        df['currency'] = df.apply(infer_currency, axis=1)
+            if total_qty > 0.00001:  # Filtrar posiciones cerradas
+                total_cost = sum(b['qty'] * b['price'] for b in batches)
+                avg_price = total_cost / total_qty
+                
+                active_holdings.append({
+                    'ticker': ticker,
+                    'qty': total_qty,
+                    'avg_buy_price': avg_price,
+                    'currency': data['currency']
+                })
+
+        if not active_holdings:
+            return {"items": [], "totals": {}}
+
+        h_df = pd.DataFrame(active_holdings)
+
+        # 4. Enriquecer con precios actuales y metadatos (Query Optimizado)
+        tickers_list = h_df['ticker'].unique().tolist()
+        if not tickers_list:
+             return {"items": [], "totals": {}}
+
+        # Escapar tickers para SQL
+        tickers_sql = ",".join([f"'{t}'" for t in tickers_list])
+
+        # Precios actuales
+        latest_prices = query_db(f"""
+            SELECT ticker, close as current_price, 
+                   row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
+            FROM ohlcv
+            WHERE timeframe = '1d' AND ticker IN ({tickers_sql})
+        """)
+        # Filtrar solo el último precio
+        latest_prices = latest_prices[latest_prices['rn'] == 1][['ticker', 'current_price']]
+
+        # Señales activas
+        active_signals = query_db(f"""
+            SELECT ticker, reason as strategies
+            FROM dynamic_watchlist
+            WHERE expires_at > now() AND ticker IN ({tickers_sql})
+        """)
+
+        # Metadatos
+        meta_df = query_db(f"SELECT ticker, name FROM ticker_metadata WHERE ticker IN ({tickers_sql})")
+
+        # Merges (Left Join para mantener todos los holdings aunque falten datos)
+        # Usamos suffixes para evitar colisiones si hubiera columnas repetidas
+        df = h_df.merge(latest_prices, on='ticker', how='left')
+        df = df.merge(active_signals, on='ticker', how='left')
+        df = df.merge(meta_df, on='ticker', how='left')
+        
+        # Limpieza final
+        if 'strategies' in df.columns:
+            df['strategies'] = df['strategies'].fillna('')
+        else:
+            df['strategies'] = ''
+            
+        df = df.sort_values('ticker')
 
         # Cálculo de P&L y Totales
         items = []
@@ -323,20 +386,23 @@ def get_portfolio():
         for _, row in df.iterrows():
             qty = float(row['qty'])
             avg = float(row['avg_buy_price'])
-            curr = float(row['current_price']) if row['current_price'] else avg
+            curr_price = float(row['current_price']) if pd.notnull(row.get('current_price')) else avg
+            currency = row['currency']
             
             invested = qty * avg
-            current_val = qty * curr
+            current_val = qty * curr_price
             pnl_val = current_val - invested
             pnl_pct = (pnl_val / invested * 100) if invested > 0 else 0
             
             item = row.to_dict()
+            # Asegurar que el diccionario tenga todos los campos esperados por el frontend
+            item['current_price'] = curr_price
             item['pnl_val'] = pnl_val
             item['pnl_pct'] = pnl_pct
             item['invested'] = invested
             item['current_val'] = current_val
             
-            # Limpieza NaN
+            # Limpieza NaN para JSON
             for k, v in item.items():
                 if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
                     item[k] = None
@@ -344,7 +410,7 @@ def get_portfolio():
             items.append(item)
             
             # Totales
-            if row['currency'] == 'MXN':
+            if currency == 'MXN':
                 total_mxn_inv += invested
                 total_mxn_val += current_val
             else:
@@ -380,6 +446,9 @@ def get_portfolio():
         return {"items": items, "totals": totals}
     except Exception as e:
         logging.error(f"Error en get_portfolio: {e}")
+        # En prod, imprimir el stacktrace ayuda
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v2/ticker/{ticker}")
