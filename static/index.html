@@ -407,6 +407,7 @@
                     <th>Side</th>
                     <th>Qty</th>
                     <th>Price</th>
+                    <th>Curr</th>
                     <th>Notes</th>
                     <th>Action</th>
                   </tr>
@@ -414,17 +415,19 @@
                 <tbody>`;
               
               txs.forEach(tx => {
-                  const dateStr = new Date(tx.timestamp).toLocaleString();
+                  const d = new Date(tx.timestamp);
+                  const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                   const sideCls = tx.side === 'BUY' ? 'val-up' : (tx.side === 'SELL' ? 'val-down' : 'val-neutral');
                   html += `
                     <tr>
-                      <td class="meta-cell">${dateStr}</td>
+                      <td class="meta-cell" style="white-space:nowrap">${dateStr}</td>
                       <td style="font-weight:700; color:var(--accent)">${tx.ticker}</td>
                       <td class="${sideCls}" style="font-weight:700">${tx.side}</td>
                       <td>${tx.qty}</td>
-                      <td>${tx.currency === 'USD' ? '$' : ''}${tx.price.toFixed(2)} ${tx.currency}</td>
+                      <td style="font-family:monospace; text-align:right">${tx.price.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                      <td class="meta-cell">${tx.currency}</td>
                       <td class="meta-cell">${tx.notes || ''}</td>
-                      <td><button onclick="deleteTx(${tx.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:16px;" title="Delete">🗑</button></td>
+                      <td style="text-align:center"><button onclick="deleteTx(${tx.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:16px;" title="Delete">🗑</button></td>
                     </tr>
                   `;
               });
