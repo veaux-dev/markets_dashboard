@@ -285,9 +285,46 @@ def get_portfolio():
         fx_df = query_db("SELECT close FROM ohlcv WHERE ticker = 'USDMXN=X' AND timeframe = '1d' ORDER BY timestamp DESC LIMIT 1")
         fx_rate = fx_df.iloc[0]['close'] if not fx_df.empty else 20.0 # Fallback seguro
         
-        # 2. Query que une la vista de holdings con precios actuales y señales
+        # 2. Query con Lógica FIFO Robusta Inyectada
         query = """
-            WITH latest_prices AS (
+            WITH total_sold AS (
+                SELECT ticker, SUM(qty) as sold_qty
+                FROM portfolio_transactions
+                WHERE side = 'SELL'
+                GROUP BY ticker
+            ),
+            buy_history AS (
+                SELECT 
+                    ticker, qty, price, currency, timestamp, id,
+                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp ASC, id ASC) - qty as prev_cum_qty,
+                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp ASC, id ASC) as cum_qty
+                FROM portfolio_transactions
+                WHERE side = 'BUY'
+            ),
+            fifo_holdings AS (
+                SELECT 
+                    b.ticker,
+                    b.price,
+                    b.currency,
+                    CASE 
+                        WHEN b.cum_qty <= COALESCE(s.sold_qty, 0) THEN 0
+                        WHEN b.prev_cum_qty >= COALESCE(s.sold_qty, 0) THEN b.qty
+                        ELSE b.cum_qty - COALESCE(s.sold_qty, 0)
+                    END as rem_qty
+                FROM buy_history b
+                LEFT JOIN total_sold s ON b.ticker = s.ticker
+            ),
+            current_holdings AS (
+                SELECT 
+                    ticker,
+                    SUM(rem_qty) as qty,
+                    SUM(rem_qty * price) / NULLIF(SUM(rem_qty), 0) as avg_buy_price,
+                    MAX(currency) as currency
+                FROM fifo_holdings
+                GROUP BY ticker
+                HAVING SUM(rem_qty) > 0.0001
+            ),
+            latest_prices AS (
                 SELECT ticker, close, 
                        row_number() OVER (PARTITION BY ticker ORDER BY timestamp DESC) as rn
                 FROM ohlcv
@@ -302,11 +339,11 @@ def get_portfolio():
                 h.ticker,
                 h.qty,
                 h.avg_buy_price,
+                h.currency,
                 p.close as current_price,
                 m.name,
-                COALESCE(s.strategies, '') as strategies,
-                'MXN' as currency -- Default, idealmente debería venir de metadata o inferencia
-            FROM view_portfolio_holdings h
+                COALESCE(s.strategies, '') as strategies
+            FROM current_holdings h
             LEFT JOIN latest_prices p ON h.ticker = p.ticker AND p.rn = 1
             LEFT JOIN ticker_metadata m ON h.ticker = m.ticker
             LEFT JOIN active_signals s ON h.ticker = s.ticker
