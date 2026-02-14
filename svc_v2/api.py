@@ -166,8 +166,8 @@ def delete_transaction(tx_id: int):
         logging.error(f"Error deleting transaction: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v2/portfolio")
-def get_portfolio():
+@app.get("/api/v2/screener")
+def get_screener_results():
     """
     Retorna los candidatos de la dynamic_watchlist MÁS los holdings y watchlist manual.
     Incluye variaciones de precio multitemporales (1D, 2D, 3D, vs Viernes Ant).
