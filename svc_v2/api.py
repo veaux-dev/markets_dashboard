@@ -183,13 +183,14 @@ def get_portfolio():
         # 2. Construir la parte manual de la query
         manual_subquery = ""
         if all_manual:
-            manual_tickers_sql = ",".join([f"('{t}')" for t in all_manual])
-            manual_subquery = f"""
-                UNION
-                SELECT ticker, NULL as reason, now() as added_at
-                FROM (VALUES {manual_tickers_sql}) AS t(ticker)
-                WHERE ticker NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
-            """
+            manual_tickers_sql = ",".join([f"('{t}')" for t in all_manual if t])
+            if manual_tickers_sql:
+                manual_subquery = f"""
+                    UNION
+                    SELECT ticker, NULL as reason, now() as added_at
+                    FROM (VALUES {manual_tickers_sql}) AS t(ticker)
+                    WHERE ticker NOT IN (SELECT ticker FROM dynamic_watchlist WHERE expires_at > now())
+                """
         
         # Query Avanzada: Window functions para deltas
         query = f"""
@@ -225,10 +226,10 @@ def get_portfolio():
                 COALESCE(t.reason, '') as strategies, 
                 t.added_at,
                 p.close, 
-                ((p.close / p.prev_1) - 1) * 100 as chg_1d,
-                ((p.close / p.prev_2) - 1) * 100 as chg_2d,
-                ((p.close / p.prev_3) - 1) * 100 as chg_3d,
-                ((p.close / p.last_friday_close) - 1) * 100 as chg_fri,
+                ((p.close / NULLIF(p.prev_1, 0)) - 1) * 100 as chg_1d,
+                ((p.close / NULLIF(p.prev_2, 0)) - 1) * 100 as chg_2d,
+                ((p.close / NULLIF(p.prev_3, 0)) - 1) * 100 as chg_3d,
+                ((p.close / NULLIF(p.last_friday_close, 0)) - 1) * 100 as chg_fri,
                 i.rsi, 
                 i.adx, 
                 i.vol_k
@@ -249,6 +250,9 @@ def get_portfolio():
         df['is_favourite'] = df['ticker'].isin(manual_watchlist)
         
         # Limpieza
+        if 'added_at' in df.columns:
+            df['added_at'] = df['added_at'].astype(str)
+
         df = df.replace([np.inf, -np.inf], np.nan)
         df = df.astype(object)
         df = df.where(pd.notnull(df), None)
