@@ -28,15 +28,14 @@ def main():
     eng = ScreenerEngine(db)
     notif = Notifier(db)
 
-    # ... (Carga de Universo VIP)
-    print("🌌 Cargando Universo VIP (Watchlist + Holdings + Dynamic)...")
+    # 3. Construir Universos
+    print("🌌 Cargando Universos...")
     
-    # A) Recuperar Holdings Reales desde DB (Ledger)
+    # A) Universo VIP (Holdings + Watchlist Manual + Dynamic) para Notificaciones
     try:
         my_holdings_df = db.conn.execute("SELECT ticker FROM view_portfolio_holdings").df()
         my_holdings = set(my_holdings_df['ticker'].tolist()) if not my_holdings_df.empty else set()
-    except Exception as e:
-        logging.warning(f"No se pudo leer view_portfolio_holdings: {e}")
+    except Exception:
         my_holdings = set()
 
     holding_tickers = [h.ticker if hasattr(h, 'ticker') else h for h in cfg.portfolios.holdings]
@@ -44,37 +43,36 @@ def main():
     
     static_tickers = cfg.universe.watchlist
     dynamic_tickers = db.get_dynamic_watchlist()
-    
     vip_tickers = list(all_holdings.union(set(static_tickers + dynamic_tickers)))
     
-    if not vip_tickers:
-        print("   ⚠️ No hay activos VIP para escanear.")
-        return
-
-    # ... (Recuperar nombres)
-    try:
-        q_names = f"SELECT ticker, name FROM ticker_metadata WHERE ticker IN ({','.join([f"'{t}'" for t in vip_tickers])})"
-        name_map = db.conn.execute(q_names).df().set_index('ticker')['name'].to_dict()
-    except Exception:
-        name_map = {}
+    # B) Universo Completo (Para Descarga y Análisis)
+    # Importamos loaders para replicar la lógica de broad_scan
+    from svc_v2.universe_loader import get_sp500_tickers, get_nasdaq100_tickers, get_key_etfs_indices
+    
+    sp500 = [t[0] for t in get_sp500_tickers()]
+    ndx100 = [t[0] for t in get_nasdaq100_tickers()]
+    etfs = [t[0] for t in get_key_etfs_indices()]
+    full_universe = list(set(sp500 + ndx100 + etfs + vip_tickers))
+    
+    print(f"   -> Universo Completo: {len(full_universe)} activos.")
+    print(f"   -> Activos VIP (Alertas): {len(vip_tickers)}")
 
     # 4. Loop por Timeframe Intradía
-    timeframes = cfg.data.timeframes.get('detailed', ['1h', '15m'])
+    # Aseguramos que solo bajamos intradía aqui (1h, 15m)
+    timeframes = [tf for tf in cfg.data.timeframes.get('detailed', ['1h', '15m']) if tf != '1d']
     
     for tf in timeframes:
-        if tf == '1d': continue 
-        
         print(f"\n⏱️  Timeframe: {tf}")
         
-        # A) Sync
-        col.sync_tickers(vip_tickers, [tf])
+        # A) Sync TODO el universo
+        col.sync_tickers(full_universe, [tf])
         
-        # B) Analyze
+        # B) Analyze TODO el universo
         force_full = os.environ.get("FORCE_FULL_SCAN") == "1"
-        alz.analyze_tickers(vip_tickers, [tf], force_full=force_full)
+        alz.analyze_tickers(full_universe, [tf], force_full=force_full)
         
-        # C) Screen
-        print(f"   🔎 Resultados:")
+        # C) Screen (Alertas solo para VIP)
+        print(f"   🔎 Evaluando Alertas VIP:")
         strategies = {
             "BUY_BOUNCE": "Rebote / Sobrevendido",
             "SELL_STRENGTH": "Euforia / Sobrecompra",
@@ -83,7 +81,13 @@ def main():
         
         for strat_key, label in strategies.items():
             candidates = eng.run_screen(strat_key, timeframe=tf)
+            # Solo nos interesan alertas de los que están en VIP
             candidates = candidates[candidates['ticker'].isin(vip_tickers)]
+            
+            if candidates.empty:
+                continue
+
+            # ... resto de la lógica de notificación ...
             
             if candidates.empty:
                 continue
