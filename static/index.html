@@ -216,7 +216,9 @@
       <!-- Add Transaction Form (Hidden by default) -->
       <div id="addTxForm" style="display:none; margin-top:15px; padding:20px; background:var(--card); border:1px solid var(--accent); border-radius:12px;">
         <h3 style="margin-top:0; font-size:16px; color:var(--accent);">New Transaction</h3>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:15px;">
+        
+        <!-- Fila 1: Datos principales -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:15px; margin-bottom:15px;">
             <div>
                 <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Ticker</label>
                 <input class="ticker-input" id="txTicker" placeholder="AAPL" style="width:100%">
@@ -231,16 +233,8 @@
                 </select>
             </div>
             <div>
-                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Quantity</label>
-                <input type="number" step="any" class="ticker-input" id="txQty" placeholder="0.0" style="width:100%">
-            </div>
-            <div>
-                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Price</label>
-                <input type="number" step="any" class="ticker-input" id="txPrice" placeholder="0.0" style="width:100%">
-            </div>
-            <div>
-                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Fees</label>
-                <input type="number" step="any" class="ticker-input" id="txFees" placeholder="0.0" style="width:100%">
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Date</label>
+                <input type="datetime-local" class="ticker-input" id="txTime" style="width:100%; height:37px;">
             </div>
             <div>
                 <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Currency</label>
@@ -249,12 +243,27 @@
                     <option value="USD">USD</option>
                 </select>
             </div>
-            <div>
-                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Date (Optional)</label>
-                <input type="datetime-local" class="ticker-input" id="txTime" style="width:100%; height:37px;">
-            </div>
         </div>
-        <div style="margin-top:15px; display:flex; gap:15px; align-items:flex-end;">
+
+        <!-- Fila 2: Valores numéricos -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:15px; margin-bottom:15px;">
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Quantity</label>
+                <input type="number" step="any" class="ticker-input" id="txQty" placeholder="0.0" style="width:100%">
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Price</label>
+                <input type="number" step="any" class="ticker-input" id="txPrice" placeholder="0.0" style="width:100%">
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Fees / Commission</label>
+                <input type="number" step="any" class="ticker-input" id="txFees" placeholder="0.0" style="width:100%">
+            </div>
+            <div style="visibility:hidden"> <!-- Spacer --> </div>
+        </div>
+
+        <!-- Fila 3: Notas y Botones -->
+        <div style="display:flex; gap:15px; align-items:flex-end; border-top:1px solid var(--stroke); padding-top:15px;">
             <div style="flex-grow:1">
                 <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px;">Notes (Optional)</label>
                 <input class="ticker-input" id="txNotes" placeholder="Reason for trade..." style="width:100%">
