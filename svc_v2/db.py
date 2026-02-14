@@ -163,7 +163,7 @@ class Database:
                     qty,
                     price,
                     timestamp,
-                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp DESC) as cumulative_qty
+                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp DESC, id DESC) as cumulative_qty
                 FROM portfolio_transactions
                 WHERE side = 'BUY'
             ),
@@ -174,7 +174,6 @@ class Database:
                     b.price,
                     b.cumulative_qty,
                     i.net_qty,
-                    -- Determinar cuánta cantidad de este lote "BUY" contribuye a la posición actual
                     CASE 
                         WHEN b.cumulative_qty <= i.net_qty THEN b.qty
                         WHEN b.cumulative_qty - b.qty < i.net_qty THEN i.net_qty - (b.cumulative_qty - b.qty)
