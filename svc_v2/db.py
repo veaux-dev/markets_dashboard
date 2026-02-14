@@ -146,17 +146,50 @@ class Database:
             );
         """)
 
-        # 7. Vista PORTFOLIO HOLDINGS (Calculada)
-        # Calcula la posición neta actual sumando compras y restando ventas
+        # 7. Vista PORTFOLIO HOLDINGS (Calculada con lógica FIFO para Cost Basis)
         self.conn.execute("""
             CREATE OR REPLACE VIEW view_portfolio_holdings AS
+            WITH current_inventory AS (
+                SELECT 
+                    ticker, 
+                    SUM(CASE WHEN side = 'BUY' THEN qty WHEN side = 'SELL' THEN -qty ELSE 0 END) as net_qty
+                FROM portfolio_transactions
+                GROUP BY ticker
+                HAVING SUM(CASE WHEN side = 'BUY' THEN qty WHEN side = 'SELL' THEN -qty ELSE 0 END) > 0
+            ),
+            buys_ranked AS (
+                SELECT 
+                    ticker,
+                    qty,
+                    price,
+                    timestamp,
+                    SUM(qty) OVER (PARTITION BY ticker ORDER BY timestamp DESC) as cumulative_qty
+                FROM portfolio_transactions
+                WHERE side = 'BUY'
+            ),
+            matched_buys AS (
+                SELECT 
+                    b.ticker,
+                    b.qty,
+                    b.price,
+                    b.cumulative_qty,
+                    i.net_qty,
+                    -- Determinar cuánta cantidad de este lote "BUY" contribuye a la posición actual
+                    CASE 
+                        WHEN b.cumulative_qty <= i.net_qty THEN b.qty
+                        WHEN b.cumulative_qty - b.qty < i.net_qty THEN i.net_qty - (b.cumulative_qty - b.qty)
+                        ELSE 0
+                    END as effective_qty
+                FROM buys_ranked b
+                JOIN current_inventory i ON b.ticker = i.ticker
+            )
             SELECT 
-                ticker, 
-                SUM(CASE WHEN side = 'BUY' THEN qty WHEN side = 'SELL' THEN -qty ELSE 0 END) as qty,
-                SUM(CASE WHEN side = 'BUY' THEN qty * price ELSE 0 END) / NULLIF(SUM(CASE WHEN side = 'BUY' THEN qty ELSE 0 END), 0) as avg_buy_price
-            FROM portfolio_transactions
-            GROUP BY ticker
-            HAVING SUM(CASE WHEN side = 'BUY' THEN qty WHEN side = 'SELL' THEN -qty ELSE 0 END) > 0;
+                ticker,
+                net_qty as qty,
+                SUM(effective_qty * price) / net_qty as avg_buy_price
+            FROM matched_buys
+            WHERE effective_qty > 0
+            GROUP BY ticker, net_qty;
         """)
 
     # --------------------------------------------------------------------------
