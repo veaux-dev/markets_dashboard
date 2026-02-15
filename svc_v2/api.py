@@ -99,6 +99,116 @@ def run_script(script_path: str):
 
 from fastapi.responses import RedirectResponse
 
+@app.get("/api/v2/portfolio/performance")
+def get_performance():
+    """
+    Calcula el P&L realizado (Closed Trades) y métricas de rendimiento.
+    """
+    try:
+        # 1. Obtener transacciones ordenadas cronológicamente
+        tx_df = query_db("SELECT id, ticker, side, qty, price, fees, currency, timestamp FROM portfolio_transactions ORDER BY timestamp ASC, id ASC")
+        if tx_df.empty:
+            return {"closed_trades": [], "stats": {}, "monthly": {}}
+
+        # 2. Algoritmo FIFO para emparejar trades cerrados
+        inventory = {} # {ticker: [ {qty, price, date, fees} ]}
+        closed_trades = []
+        
+        for _, tx in tx_df.iterrows():
+            t = tx['ticker']
+            side = tx['side']
+            q = float(tx['qty'])
+            p = float(tx['price'])
+            f = float(tx['fees'] or 0)
+            dt = tx['timestamp']
+
+            if t not in inventory: inventory[t] = []
+
+            if side == 'BUY':
+                inventory[t].append({'qty': q, 'price': p, 'date': dt, 'fees': f})
+            
+            elif side == 'SELL':
+                qty_to_sell = q
+                while qty_to_sell > 0 and inventory[t]:
+                    buy_lot = inventory[t][0]
+                    match_qty = min(buy_lot['qty'], qty_to_sell)
+                    
+                    # Prorrateo de comisiones
+                    buy_fees_share = (buy_lot['fees'] / buy_lot['qty']) * match_qty if buy_lot['qty'] > 0 else 0
+                    sell_fees_share = (f / q) * match_qty
+                    
+                    invested = match_qty * buy_lot['price']
+                    realized = match_qty * p
+                    pnl_val = realized - invested - buy_fees_share - sell_fees_share
+                    
+                    duration = (dt - buy_lot['date']).days
+                    
+                    closed_trades.append({
+                        "ticker": t,
+                        "qty": match_qty,
+                        "buy_price": buy_lot['price'],
+                        "sell_price": p,
+                        "open_date": buy_lot['date'].isoformat(),
+                        "close_date": dt.isoformat(),
+                        "pnl_val": pnl_val,
+                        "pnl_pct": (pnl_val / invested * 100) if invested > 0 else 0,
+                        "duration_days": duration,
+                        "currency": tx['currency']
+                    })
+
+                    qty_to_sell -= match_qty
+                    buy_lot['qty'] -= match_qty
+                    if buy_lot['qty'] <= 0.00001:
+                        inventory[t].pop(0)
+
+        # 3. Resumen por Mes (Calendario de Ganancias)
+        monthly = {}
+        for ct in closed_trades:
+            # Usamos la fecha de cierre para el calendario
+            month_key = ct['close_date'][:7] # YYYY-MM
+            if month_key not in monthly:
+                monthly[month_key] = {"pnl": 0, "trades": 0, "wins": 0}
+            
+            monthly[month_key]["pnl"] += ct['pnl_val']
+            monthly[month_key]["trades"] += 1
+            if ct['pnl_val'] > 0:
+                monthly[month_key]["wins"] += 1
+
+        # 4. Estadísticas Globales
+        if not closed_trades:
+            return {"closed_trades": [], "stats": {}, "monthly": monthly}
+
+        total_pnl = sum(t['pnl_val'] for t in closed_trades)
+        wins = [t for t in closed_trades if t['pnl_val'] > 0]
+        
+        # Anualización (CAGR aproximado por trade)
+        cagrs = []
+        for t in closed_trades:
+            if t['duration_days'] > 0:
+                years = t['duration_days'] / 365.25
+                roi = (t['pnl_val'] / (t['qty'] * t['buy_price']))
+                # Limitar CAGR para evitar outliers extremos en trades muy cortos
+                ann = ((1 + roi) ** (1/years) - 1) * 100 if roi > -1 else -100
+                cagrs.append(min(max(ann, -100), 500))
+
+        stats = {
+            "total_trades": len(closed_trades),
+            "win_rate": (len(wins) / len(closed_trades) * 100),
+            "total_realized_pnl": total_pnl,
+            "avg_pnl_pct": sum(t['pnl_pct'] for t in closed_trades) / len(closed_trades),
+            "avg_annualized": sum(cagrs) / len(cagrs) if cagrs else 0,
+            "avg_duration": sum(t['duration_days'] for t in closed_trades) / len(closed_trades)
+        }
+
+        return {
+            "closed_trades": sorted(closed_trades, key=lambda x: x['close_date'], reverse=True), 
+            "stats": stats,
+            "monthly": monthly
+        }
+    except Exception as e:
+        logging.error(f"Error in performance: {e}")
+        return {"error": str(e)}
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/static/index.html")
