@@ -95,7 +95,7 @@
         if(!stats) return;
         const container = document.getElementById('statsContainer');
         const items = [
-          { label: 'Realized P&L', val: `$${stats.total_realized_pnl.toLocaleString()}`, cls: stats.total_realized_pnl >= 0 ? 'val-up' : 'val-down' },
+          { label: 'Realized P&L (MXN)', val: `$${stats.total_realized_pnl_mxn.toLocaleString(undefined, {maximumFractionDigits:0})}`, cls: stats.total_realized_pnl_mxn >= 0 ? 'val-up' : 'val-down' },
           { label: 'Win Rate', val: `${stats.win_rate.toFixed(1)}%`, cls: 'val-up' },
           { label: 'Avg P&L %', val: `${stats.avg_pnl_pct.toFixed(2)}%`, cls: stats.avg_pnl_pct >= 0 ? 'val-up' : 'val-down' },
           { label: 'Avg Annualized (CAGR)', val: `${stats.avg_annualized.toFixed(1)}%`, cls: stats.avg_annualized >= 0 ? 'val-up' : 'val-down' },
@@ -117,11 +117,11 @@
         
         container.innerHTML = sortedMonths.map(m => {
           const d = monthly[m];
-          const cls = d.pnl >= 0 ? 'val-up' : 'val-down';
+          const cls = d.pnl_mxn >= 0 ? 'val-up' : 'val-down';
           return `
             <div class="month-card">
               <span class="month-name">${m}</span>
-              <span class="month-pnl ${cls}">${d.pnl >= 0 ? '+' : ''}$${d.pnl.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+              <span class="month-pnl ${cls}">${d.pnl_mxn >= 0 ? '+' : ''}$${d.pnl_mxn.toLocaleString(undefined, {maximumFractionDigits:0})} <small style="font-size:9px">MXN</small></span>
               <div style="font-size:10px; color:var(--muted); margin-top:5px;">${d.wins}/${d.trades} Wins</div>
             </div>
           `;
@@ -140,30 +140,31 @@
             <tr>
               <th>Ticker</th>
               <th>Qty</th>
-              <th>Buy Date</th>
-              <th>Sell Date</th>
-              <th>Buy Price</th>
-              <th>Sell Price</th>
-              <th>Duration</th>
+              <th>Date Range</th>
+              <th>Prices</th>
+              <th>Dur.</th>
               <th>P&L %</th>
-              <th>P&L $</th>
+              <th>P&L Orig</th>
+              <th>P&L MXN (Est)</th>
             </tr>
           </thead>
           <tbody>`;
         
         trades.forEach(t => {
-          const cls = t.pnl_val >= 0 ? 'val-up' : 'val-down';
+          const cls = t.pnl_mxn >= 0 ? 'val-up' : 'val-down';
+          const pnlOrig = `${t.pnl_val >= 0 ? '+' : ''}${t.pnl_val.toLocaleString(undefined, {minimumFractionDigits:2})} ${t.currency}`;
+          const pnlMxn = `${t.pnl_mxn >= 0 ? '+' : ''}$${t.pnl_mxn.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+          
           html += `
             <tr>
               <td><span class="ticker">${t.ticker}</span></td>
-              <td>${t.qty}</td>
-              <td class="date-small">${t.open_date.split('T')[0]}</td>
-              <td class="date-small">${t.close_date.split('T')[0]}</td>
-              <td>$${t.buy_price.toFixed(2)}</td>
-              <td>$${t.sell_price.toFixed(2)}</td>
+              <td>${t.qty.toFixed(2)}</td>
+              <td class="date-small">${t.open_date.split('T')[0]} <br> ${t.close_date.split('T')[0]}</td>
+              <td class="date-small">In: $${t.buy_price.toFixed(2)} <br> Out: $${t.sell_price.toFixed(2)}</td>
               <td>${t.duration_days}d</td>
               <td class="${cls}" style="font-weight:600">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(2)}%</td>
-              <td class="${cls}" style="font-weight:700">${t.pnl_val >= 0 ? '+' : ''}$${t.pnl_val.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              <td class="${cls}" style="font-size:11px">${pnlOrig}</td>
+              <td class="${cls}" style="font-weight:700">${pnlMxn}</td>
             </tr>
           `;
         });
